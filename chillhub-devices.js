@@ -6,16 +6,26 @@ var sets = require('simplesets');
 
 function ChillhubDevice(hidPath, receive) {
 	this.deviceType = '';
+	this.frameSize = 4; // default for arduino midi firmware
 	this.subscriptions = new sets.Set([]);
 	this.hid = new hid.HID(hidPath);
 	
 	var self = this;
+	var buf = [];
 	
 	this.hasPath = function(p) {
 		return (hidPath == p);
 	};
 	
-	this.hid.on('data', routeIncomingMessage);
+	this.hid.on('data', function(data) {
+		buf = buf.concat((new stream.Reader(data)).readBytes(data.length));
+		while(buf.length > buf[0]) {
+			msg = buf.slice(1,buf[0]+1);
+			buf = buf.slice(buf[0]+1,buf.length);
+			if (msg.length > 0)
+				routeIncomingMessage(msg);
+		}
+	});
 	
 	this.hid.on('error', function() {
 		self.hid.close();
@@ -139,10 +149,13 @@ function ChillhubDevice(hidPath, receive) {
 	this.send = function(data) {
 		// parse data into the format that usb devices expect and transmit it
 		var dataBytes = parseJsonToStream(data);
-		var writer = new stream.Writer(dataBytes.length + 1);
+		var messageLength = self.frameSize * Math.ceil((dataBytes.length+1)/self.frameSize);
+		var writer = new stream.Writer(messageLength);
 		
 		writer.writeUInt8(dataBytes.length);
 		writer.writeBytes(dataBytes);
+		for (var j = (dataBytes.length+1); j < messageLength; j++)
+			writer.writeUInt8(0);
 		self.hid.write(writer.toArray());
 	}
 	
@@ -332,7 +345,10 @@ exports.subscriberBroadcast = function(type, data) {
 	};
 	
 	devSet.forEach(function(ele) {
-		if (ele.subscriptions.has(message.type))
+		if (ele.subscriptions.has(message.type)) {
+			console.log('sending...');
+			console.log(message);
 			ele.send(message);
+		}
 	});
 };
