@@ -18,7 +18,8 @@ var messageRelay = function(data) {
 	
 	req.write(json + '\n');
 	req.end();*/
-	console.log('POSTing data: ' + data);
+	console.log('POSTing data: ');
+	console.log(data);
 };
 
 var messageBroadcast = function(data) {

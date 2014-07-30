@@ -1,35 +1,42 @@
 var util = require('util');
 var events = require('events');
-var hid = require('node-hid');
+var serial = require('serialport');
 var stream = require('binary-stream');
 var sets = require('simplesets');
 
-function ChillhubDevice(hidPath, receive) {
+function ChillhubDevice(ttyPath, receive) {
 	this.deviceType = '';
-	this.frameSize = 4; // default for arduino midi firmware
 	this.subscriptions = new sets.Set([]);
-	this.hid = new hid.HID(hidPath);
+	this.tty = new serial.SerialPort(ttyPath, { baudrate: 115200 });
 	
 	var self = this;
 	var buf = [];
 	
 	this.hasPath = function(p) {
-		return (hidPath == p);
+		return (ttyPath == p);
 	};
 	
-	this.hid.on('data', function(data) {
-		buf = buf.concat((new stream.Reader(data)).readBytes(data.length));
-		while(buf.length > buf[0]) {
-			msg = buf.slice(1,buf[0]+1);
-			buf = buf.slice(buf[0]+1,buf.length);
-			if (msg.length > 0)
-				routeIncomingMessage(msg);
-		}
-	});
+	this.tty.open(function() {
+		self.tty.on('data', function(data) {
+			// network byte order is big endian... let's go with that
+			buf = buf.concat((new stream.Reader(data, stream.BIG_ENDIAN)).readBytes(data.length));
+			while(buf.length > buf[0]) {
+				msg = buf.slice(1,buf[0]+1);
+				buf = buf.slice(buf[0]+1,buf.length);
+				if (msg.length > 0)
+					routeIncomingMessage(msg);
+			}
+		});
 	
-	this.hid.on('error', function() {
-		self.hid.close();
-		self.send = function(data) { };
+		self.send = function(data) {
+			// parse data into the format that usb devices expect and transmit it
+			var dataBytes = parseJsonToStream(data);
+			var writer = new stream.Writer(dataBytes.length+1, stream.BIG_ENDIAN);
+			
+			writer.writeUInt8(dataBytes.length);
+			writer.writeBytes(dataBytes);
+			self.tty.write(writer.toArray());
+		};
 	});
 	
 	function routeIncomingMessage(data) {
@@ -139,25 +146,12 @@ function ChillhubDevice(hidPath, receive) {
 			return readFcn(instream);
 		};
 		
-		var reader = new stream.Reader(data);
+		var reader = new stream.Reader(data, stream.BIG_ENDIAN);
 		return {
 			type: reader.readUInt8(),
 			content: parseDataFromStream(reader)
 		};
-	}
-	
-	this.send = function(data) {
-		// parse data into the format that usb devices expect and transmit it
-		var dataBytes = parseJsonToStream(data);
-		var messageLength = self.frameSize * Math.ceil((dataBytes.length+1)/self.frameSize);
-		var writer = new stream.Writer(messageLength);
-		
-		writer.writeUInt8(dataBytes.length);
-		writer.writeBytes(dataBytes);
-		for (var j = (dataBytes.length+1); j < messageLength; j++)
-			writer.writeUInt8(0);
-		self.hid.write(writer.toArray());
-	}
+	}	
 	
 	function parseJsonToStream(message) {
 		var parseArrayToString = function(outstream, array, doWriteType) {
@@ -248,7 +242,7 @@ function ChillhubDevice(hidPath, receive) {
 			parseFcn(outstream, data, doWriteType);
 		};
 		
-		var writer = new stream.Writer(255);
+		var writer = new stream.Writer(255, stream.BIG_ENDIAN);
 		writer.writeUInt8(message.type);
 		parseDataToStream(writer, message.content, true);
 		return writer.toArray();
@@ -267,38 +261,36 @@ exports.init = function(receiverCallback) {
 	
 	// watch for new devices
 	setInterval(function() {
-		var devices = hid.devices();
-		var nowSet = new sets.Set(devices.filter(function(ele) {
-			// this one is the GEA adapter... should filter out others (camera?)
-			return !((ele.vendorId == 1240) && (ele.productId == 64752));
-		}).map(function(ele) {
-			return ele.path;
-		}));
-		
-		// if some device is in devices but previously wasn't, register it
-		nowSet.difference(thenSet).array().forEach(function(ele) {
-			console.log('registering new USB device ' + ele);
-			devSet.push(new ChillhubDevice(ele, callbackWrapper));
-		});
-		
-		// if some device was in devices but now isn't, destroy it
-		thenSet.difference(nowSet).array().forEach(function(ele) {
-			console.log('unregistering USB device ' + ele);
+		var devices = serial.list(function(err, ports) {
+			var nowSet = new sets.Set(ports.map(function(port) {
+				return port.comName;
+			}));
 			
-			// almost certainly a better way of doing this, but couldn't say what it is...
-			var deleteSet = devSet.filter(function(dev) {
-				return dev.hasPath(ele);
-			});
-			devSet = devSet.filter(function(dev) {
-				return !dev.hasPath(ele);
+			// if some device is in devices but previously wasn't, register it
+			nowSet.difference(thenSet).array().forEach(function(ele) {
+				console.log('registering new USB device ' + ele);
+				devSet.push(new ChillhubDevice(ele, callbackWrapper));
 			});
 			
-			for (var j = 0; j < deleteSet.length; j++) {
-				delete deleteSet[j];
-			}
+			// if some device was in devices but now isn't, destroy it
+			thenSet.difference(nowSet).array().forEach(function(ele) {
+				console.log('unregistering USB device ' + ele);
+				
+				// almost certainly a better way of doing this, but couldn't say what it is...
+				var deleteSet = devSet.filter(function(dev) {
+					return dev.hasPath(ele);
+				});
+				devSet = devSet.filter(function(dev) {
+					return !dev.hasPath(ele);
+				});
+				
+				for (var j = 0; j < deleteSet.length; j++) {
+					delete deleteSet[j];
+				}
+			});
+			
+			thenSet = nowSet;
 		});
-		
-		thenSet = nowSet;
 	}, 100);
 };
 
