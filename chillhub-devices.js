@@ -16,7 +16,13 @@ function ChillhubDevice(ttyPath, receive) {
 		return (ttyPath == p);
 	};
 	
-	this.tty.open(function() {
+	this.tty.open(function(err) {
+		if (err) {
+			console.log('error opening serial port');
+			console.log(err);
+			return;
+		}
+		
 		self.tty.on('data', function(data) {
 			// network byte order is big endian... let's go with that
 			buf = buf.concat((new stream.Reader(data, stream.BIG_ENDIAN)).readBytes(data.length));
@@ -27,6 +33,10 @@ function ChillhubDevice(ttyPath, receive) {
 					routeIncomingMessage(msg);
 			}
 		});
+		self.tty.on('error', function(err) {
+			console.log('serial error:');
+			console.log(err);
+		});
 	
 		self.send = function(data) {
 			// parse data into the format that usb devices expect and transmit it
@@ -35,7 +45,12 @@ function ChillhubDevice(ttyPath, receive) {
 			
 			writer.writeUInt8(dataBytes.length);
 			writer.writeBytes(dataBytes);
-			self.tty.write(writer.toArray());
+			self.tty.write(writer.toArray(), function(err) {
+				if (err) {
+					console.log('error writing to serial');
+					console.log(err);
+				}
+			});
 		};
 	});
 	
@@ -262,6 +277,12 @@ exports.init = function(receiverCallback) {
 	// watch for new devices
 	setInterval(function() {
 		var devices = serial.list(function(err, ports) {
+			if (err) {
+				console.log('error listing serial ports...');
+				console.log(err);
+				return;
+			}
+			
 			var nowSet = new sets.Set(ports.map(function(port) {
 				return port.comName;
 			}));
@@ -284,9 +305,7 @@ exports.init = function(receiverCallback) {
 					return !dev.hasPath(ele);
 				});
 				
-				for (var j = 0; j < deleteSet.length; j++) {
-					delete deleteSet[j];
-				}
+				delete deleteSet;
 			});
 			
 			thenSet = nowSet;
@@ -338,8 +357,6 @@ exports.subscriberBroadcast = function(type, data) {
 	
 	devSet.forEach(function(ele) {
 		if (ele.subscriptions.has(message.type)) {
-			console.log('sending...');
-			console.log(message);
 			ele.send(message);
 		}
 	});
