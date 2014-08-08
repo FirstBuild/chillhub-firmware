@@ -1,3 +1,5 @@
+#define FIVE_MINUTE_TIMER_ID  0x70
+
 uint8_t buf[16] = { 0 };
 
 unsigned int doorCounts = 0;
@@ -7,7 +9,7 @@ void setup() {
   delay(200);
 
   // register device type with chillhub mailman
-  buf[0] = 13; // length of the following message
+  buf[0] = 12; // length of the following message
   buf[1] = 0x00; // register name message type
   buf[2] = 0x02; // string data type
   buf[3] = 10; // string length
@@ -16,12 +18,11 @@ void setup() {
   buf[6] = 'i';
   buf[7] = 'l';
   buf[8] = 'l';
-  buf[9] = '-';
-  buf[10] = 'd';
-  buf[11] = 'e';
-  buf[12] = 'm';
-  buf[13] = 'o';
-  Serial.write(buf, 14);
+  buf[9] = 'd';
+  buf[10] = 'e';
+  buf[11] = 'm';
+  buf[12] = 'o';
+  Serial.write(buf, 13);
 
   delay(200);
 
@@ -31,6 +32,15 @@ void setup() {
   buf[2] = 0x03; // unsigned char data type
   buf[3] = 0x22; // door status
   Serial.write(buf, 4);
+  
+  // listen for multiples of five minutes
+  buf[0] = 17; // message length
+  buf[1] = 0x03; // set alarm
+  buf[2] = 0x02; // string
+  buf[3] = 14; // string length
+  buf[4] = FIVE_MINUTE_TIMER_ID; // callback id... it's best to use a character here otherwise things don't work right
+  Serial.write(buf,5); // send all that so that we can use Serial.print for the string
+  Serial.print("0 */5 * * * *"); // cron string
 }
 
 void loop() {
@@ -62,6 +72,15 @@ void loop() {
         // toss remainder of message that we don't care about
         for (int j = 0; j < (length-1); j++)
           Serial.read();
+      }
+      
+      if (msgType == 0x05) {
+        // cancel the timer after we get the first one...
+        buf[0] = 3;
+        buf[1] = 0x04; // alarm unset
+        buf[2] = 0x04; // uint8
+        buf[3] = FIVE_MINUTE_TIMER_ID;
+        Serial.write(buf, 4);
       }
     }
   }

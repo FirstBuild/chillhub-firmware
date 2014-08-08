@@ -59,21 +59,28 @@ function ChillhubDevice(ttyPath, receive, announce) {
 	
 	function cronCallback(id) {
 		return function() {
-			var now = new Date();
-			var msgContent = [id, now.getMonth(), now.getDate(), now.getHours(), now.getMinutes()].map(function(val) {
-				return {
-					numericType: 'U8',
-					numericValue: val
-				};
-			});
-			console.log('msgContent: ');
-			console.log(msgContent);
+			self.encodeTime(id);
+			
 			self.send({
 				type: 0x05,
 				content: msgContent
 			});
 		}
 	};
+	
+	function encodeTime(id) {
+		var now = new Date();
+		var dateField = [now.getMonth(), now.getDate(), now.getHours(), now.getMinutes()];
+		if (id) 
+			dateField.splice(0, 0, id);
+		
+		return dateField.map(function(val) {
+			return {
+				numericType: 'U8',
+				numericValue: val
+			};
+		});
+	}
 	
 	function routeIncomingMessage(data) {
 		// parse into whatever form and then send it along
@@ -107,6 +114,12 @@ function ChillhubDevice(ttyPath, receive, announce) {
 					self.cronJobs[jsonData.content] = null;
 				}
 				break;
+			case 0x06: // get time
+				self.send({
+					type: 0x07,
+					content: self.encodeTime()
+				});
+				break;
 			default:
 				jsonData.device = self.deviceType;
 				receive(self, jsonData);
@@ -117,6 +130,11 @@ function ChillhubDevice(ttyPath, receive, announce) {
 		var getDataReadFunction = function(instream) {
 			var readFcn;
 			switch(instream.readUInt8()) {
+				case 0x00: // no data
+					readFcn = function(stream) {
+						return;
+					}
+					break;
 				case 0x01: // array
 					readFcn = parseArrayFromStream;
 					break;
@@ -271,6 +289,11 @@ function ChillhubDevice(ttyPath, receive, announce) {
 			outstream.writeUInt8(message.content?0x01:0x00);
 		};
 		
+		var parseNothingToStream = function(outstream, data, doWriteType) {
+			if (doWriteType)
+				outstream.writeUInt8(0x00);
+		};
+		
 		var parseDataToStream = function(outstream, data, doWriteType) {
 			var parseFcn;
 			switch ( Object.prototype.toString.call(data) ) {
@@ -285,7 +308,11 @@ function ChillhubDevice(ttyPath, receive, announce) {
 					break;
 				case '[object Array]':
 					parseFcn = parseArrayToStream;
-					break
+					break;
+				case '[object Null]':
+				case '[object Undefined]':
+					parseFcn = parseNothingToStream;
+					break;
 				default:
 					if (data['numericType'])
 						parseFcn = parseNumericObjectToStream(data);
