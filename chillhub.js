@@ -2,6 +2,7 @@ var http = require('http');
 var gea = require('gea-sdk');
 var adapter = require('gea-adapter-usb');
 var devices = require('./chillhub-devices');
+var request = require('request');
 
 var app = gea.configure({
     address: 0xCB,
@@ -10,16 +11,17 @@ var app = gea.configure({
 app.plugin(require('gea-plugin-refrigerator'));
 
 var messageRelay = function(data) {
-	/*var req = http.request({
-		hostname: 'www.the_chillhub_cloud_server_for_the_web.com',
-		path: '/some_path_or_something_goes_here_for_sure',
-		method: 'POST'
-	});
-	
-	req.write(json + '\n');
-	req.end();*/
-	console.log('POSTing data: ');
-	console.log(data);
+	/*request.post({
+		uri: 'http://192.168.1.100/kw/deviceMessage',
+		json: data
+	});*/
+};
+
+var deviceAnnounce = function(devlist) {
+	/*request.post({
+		uri: 'http://192.168.1.100/kw/devices',
+		json: devlist
+	});*/
 };
 
 var messageBroadcast = function(data) {
@@ -27,7 +29,7 @@ var messageBroadcast = function(data) {
 		devices.subscriberBroadcast(field, data[field]);
 };
 
-devices.init(messageRelay);
+devices.init(messageRelay, deviceAnnounce);
 
 app.bind(adapter, function (bus) {
 	console.log('bound to USB adapter');

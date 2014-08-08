@@ -4,13 +4,16 @@ var serial = require('serialport');
 var stream = require('binary-stream');
 var sets = require('simplesets');
 
-function ChillhubDevice(ttyPath, receive) {
+var CronJob = require('cron').CronJob;
+
+function ChillhubDevice(ttyPath, receive, announce) {
 	this.deviceType = '';
 	this.subscriptions = new sets.Set([]);
 	this.tty = new serial.SerialPort(ttyPath, { baudrate: 115200 });
+	this.buf = [];
+	this.cronJobs = {};
 	
 	var self = this;
-	var buf = [];
 	
 	this.hasPath = function(p) {
 		return (ttyPath == p);
@@ -25,10 +28,10 @@ function ChillhubDevice(ttyPath, receive) {
 		
 		self.tty.on('data', function(data) {
 			// network byte order is big endian... let's go with that
-			buf = buf.concat((new stream.Reader(data, stream.BIG_ENDIAN)).readBytes(data.length));
-			while(buf.length > buf[0]) {
-				msg = buf.slice(1,buf[0]+1);
-				buf = buf.slice(buf[0]+1,buf.length);
+			self.buf = self.buf.concat((new stream.Reader(data, stream.BIG_ENDIAN)).readBytes(data.length));
+			while(self.buf.length > self.buf[0]) {
+				msg = self.buf.slice(1,self.buf[0]+1);
+				self.buf = self.buf.slice(self.buf[0]+1,self.buf.length);
 				if (msg.length > 0)
 					routeIncomingMessage(msg);
 			}
@@ -54,6 +57,24 @@ function ChillhubDevice(ttyPath, receive) {
 		};
 	});
 	
+	function cronCallback(id) {
+		return function() {
+			var now = new Date();
+			var msgContent = [id, now.getMonth(), now.getDate(), now.getHours(), now.getMinutes()].map(function(val) {
+				return {
+					numericType: 'U8',
+					numericValue: val
+				};
+			});
+			console.log('msgContent: ');
+			console.log(msgContent);
+			self.send({
+				type: 0x05,
+				content: msgContent
+			});
+		}
+	};
+	
 	function routeIncomingMessage(data) {
 		// parse into whatever form and then send it along
 		var jsonData = parseStreamToJson(data);
@@ -62,6 +83,7 @@ function ChillhubDevice(ttyPath, receive) {
 			case 0x00:
 				self.deviceType = jsonData.content;
 				console.log('REGISTERed device "'+self.deviceType+'"!');
+				announce();
 				break;
 			case 0x01: // subscribe to data stream
 				console.log(self.deviceType + ' SUBSCRIBEs to ' + jsonData.content + '!');
@@ -70,6 +92,20 @@ function ChillhubDevice(ttyPath, receive) {
 			case 0x02: // unsubscribe to data stream
 				console.log(self.deviceType + ' UNSUBSCRIBEs to ' + jsonData.content + '!');
 				self.subscriptions.remove(jsonData.content);
+				break;
+			case 0x03: // set alarm
+				var cronId = jsonData.content.charCodeAt(0);
+				var cronString = jsonData.content.substring(1);
+				console.log(self.deviceType + ' ALARM_SETS ' + cronString + '(' + cronId + ') !');
+				self.cronJobs[cronId] = new CronJob(cronString, cronCallback(cronId));
+				self.cronJobs[cronId].start();
+				break;
+			case 0x04: // unset alarm
+				console.log(self.deviceType + ' ALARM_UNSETS (' + jsonData.content + ') !');
+				if (self.cronJobs[jsonData.content]) {
+					self.cronJobs[jsonData.content].stop();
+					self.cronJobs[jsonData.content] = null;
+				}
 				break;
 			default:
 				jsonData.device = self.deviceType;
@@ -81,6 +117,9 @@ function ChillhubDevice(ttyPath, receive) {
 		var getDataReadFunction = function(instream) {
 			var readFcn;
 			switch(instream.readUInt8()) {
+				case 0x01: // array
+					readFcn = parseArrayFromStream;
+					break;
 				case 0x02: // string
 					readFcn = parseStringFromStream;
 					break;
@@ -169,7 +208,7 @@ function ChillhubDevice(ttyPath, receive) {
 	}	
 	
 	function parseJsonToStream(message) {
-		var parseArrayToString = function(outstream, array, doWriteType) {
+		var parseArrayToStream = function(outstream, array, doWriteType) {
 			if (doWriteType)
 				outstream.writeUInt8(0x01);
 			outstream.writeUInt8(array.length);
@@ -262,17 +301,29 @@ function ChillhubDevice(ttyPath, receive) {
 		parseDataToStream(writer, message.content, true);
 		return writer.toArray();
 	}
+
+	function cleanup() {
+		self.cronJobs.map(function(j) {
+			j.stop();
+		});
+	}
 }
 
 var devSet = [];
 
-exports.init = function(receiverCallback) {
+exports.init = function(receiverCallback, deviceListCallback) {
 	var thenSet = new sets.Set([]);
 	
 	var callbackWrapper = function(dev, msg) {
 		msg.devId = devSet.indexOf(dev);
 		receiverCallback(msg);
 	};
+	
+	var announceCallback = function() {	
+		deviceListCallback(devSet.map(function(dev) {
+			return dev.deviceType;
+		}));
+	}
 	
 	// watch for new devices
 	setInterval(function() {
@@ -290,13 +341,14 @@ exports.init = function(receiverCallback) {
 			// if some device is in devices but previously wasn't, register it
 			nowSet.difference(thenSet).array().forEach(function(ele) {
 				console.log('registering new USB device ' + ele);
-				devSet.push(new ChillhubDevice(ele, callbackWrapper));
+				devSet.push(new ChillhubDevice(ele, callbackWrapper, announceCallback));
 			});
 			
 			// if some device was in devices but now isn't, destroy it
+			var anyDeviceRemoved = false;
 			thenSet.difference(nowSet).array().forEach(function(ele) {
 				console.log('unregistering USB device ' + ele);
-				
+				anyDeviceRemoved = true;
 				// almost certainly a better way of doing this, but couldn't say what it is...
 				var deleteSet = devSet.filter(function(dev) {
 					return dev.hasPath(ele);
@@ -305,10 +357,15 @@ exports.init = function(receiverCallback) {
 					return !dev.hasPath(ele);
 				});
 				
+				deleteSet.map(function(e) {
+					e.cleanup();
+				});
 				delete deleteSet;
 			});
 			
 			thenSet = nowSet;
+			if (anyDeviceRemoved)
+				announceCallback();
 		});
 	}, 100);
 };
