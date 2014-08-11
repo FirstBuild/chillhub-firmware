@@ -59,7 +59,7 @@ function ChillhubDevice(ttyPath, receive, announce) {
 	
 	function cronCallback(id) {
 		return function() {
-			self.encodeTime(id);
+			var msgContent =  encodeTime(id);
 			
 			self.send({
 				type: 0x05,
@@ -80,7 +80,7 @@ function ChillhubDevice(ttyPath, receive, announce) {
 				numericValue: val
 			};
 		});
-	}
+	};
 	
 	function routeIncomingMessage(data) {
 		// parse into whatever form and then send it along
