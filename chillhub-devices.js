@@ -5,8 +5,9 @@ var stream = require('binary-stream');
 var sets = require('simplesets');
 
 var CronJob = require('cron').CronJob;
+var monitor = require('usb-detection');
 
-function ChillhubDevice(ttyPath, receive, announce) {
+function ChillhubDevice(ttyPath, receive) {
 	this.deviceType = '';
 	this.subscriptions = new sets.Set([]);
 	this.tty = new serial.SerialPort(ttyPath, { baudrate: 115200 });
@@ -90,7 +91,6 @@ function ChillhubDevice(ttyPath, receive, announce) {
 			case 0x00:
 				self.deviceType = jsonData.content;
 				console.log('REGISTERed device "'+self.deviceType+'"!');
-				announce();
 				break;
 			case 0x01: // subscribe to data stream
 				console.log(self.deviceType + ' SUBSCRIBEs to ' + jsonData.content + '!');
@@ -345,14 +345,9 @@ exports.init = function(receiverCallback, deviceListCallback) {
 		msg.devId = devSet.indexOf(dev);
 		receiverCallback(msg);
 	};
-	
-	var announceCallback = function() {	
-		deviceListCallback(devSet.map(function(dev) {
-			return dev.deviceType;
-		}));
-	}
-	
+		
 	// watch for new devices
+	//monitor.on('change', function() {
 	setInterval(function() {
 		var devices = serial.list(function(err, ports) {
 			if (err) {
@@ -368,7 +363,7 @@ exports.init = function(receiverCallback, deviceListCallback) {
 			// if some device is in devices but previously wasn't, register it
 			nowSet.difference(thenSet).array().forEach(function(ele) {
 				console.log('registering new USB device ' + ele);
-				devSet.push(new ChillhubDevice(ele, callbackWrapper, announceCallback));
+				devSet.push(new ChillhubDevice(ele, callbackWrapper));
 			});
 			
 			// if some device was in devices but now isn't, destroy it
@@ -391,10 +386,11 @@ exports.init = function(receiverCallback, deviceListCallback) {
 			});
 			
 			thenSet = nowSet;
-			if (anyDeviceRemoved)
-				announceCallback();
+			/*deviceListCallback(devSet.map(function(dev) {
+				return dev.deviceType;
+			}));*/
 		});
-	}, 100);
+	}, 500);
 };
 
 exports.subscriberBroadcast = function(type, data) {
