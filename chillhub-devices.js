@@ -395,7 +395,6 @@ exports.init = function(receiverCallback, deviceListCallback) {
 			
 			thenSet = nowSet;
 			deviceListCallback(devSet.map(function(dev) {
-            console.log("Device type is " + dev.deviceType);
 				return dev.deviceType;
 			}));
 		});
