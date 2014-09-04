@@ -4,18 +4,21 @@ var devices = require('./chillhub-devices');
 var request = require('request');
 //var Autoclick = require('./autoclick');
 
+//var firebaseUrl = "https://blazing-torch-8537.firebaseio.com/homes/home1/devices"
+var firebaseUrl = "https://amber-inferno-1450.firebaseio.com"
+
 //var Firebase = require("firebase");
 var util = require("util");
 
 var messageRelay = function(data) {
-	/*var myFirebaseRef = new Firebase("https://blazing-torch-8537.firebaseio.com/homes/home1/devices" + 
+	var myFirebaseRef = new Firebase(firebaseUrl + 
 		data.devId + "/status");
 	
-	myFirebaseRef.set(data);*/
+	myFirebaseRef.set(data);
 };
 
 var deviceAnnounce = function(devlist) {
-	/*var myFirebaseRef = new Firebase("https://blazing-torch-8537.firebaseio.com/homes/home1/devices");
+	var myFirebaseRef = new Firebase(firebaseUrl);
 	
 	myFirebaseRef.set(devlist);*/
 };
