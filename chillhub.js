@@ -7,7 +7,7 @@ var request = require('request');
 //var firebaseUrl = "https://blazing-torch-8537.firebaseio.com/homes/home1/devices"
 var firebaseUrl = "https://amber-inferno-1450.firebaseio.com"
 
-//var Firebase = require("firebase");
+var Firebase = require("firebase");
 var util = require("util");
 
 var messageRelay = function(data) {
