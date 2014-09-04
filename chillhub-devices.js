@@ -383,7 +383,12 @@ exports.init = function(receiverCallback, deviceListCallback) {
 				});
 				
 				deleteSet.map(function(e) {
-					e.cleanup();
+               try{
+					   e.cleanup();
+               }
+               catch(err){
+                  console.log("Error calling cleanup function.");
+               }
 				});
 				delete deleteSet;
 			});
