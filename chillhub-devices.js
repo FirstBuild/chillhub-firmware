@@ -62,6 +62,8 @@ function ChillhubDevice(ttyPath, receive) {
 	function cronCallback(id) {
 		return function() {
 			var msgContent =  encodeTime(id);
+
+         console.log("In cronCallback");
 			
 			self.send({
 				type: 0x05,
@@ -388,6 +390,7 @@ exports.init = function(receiverCallback, deviceListCallback) {
 			
 			thenSet = nowSet;
 			deviceListCallback(devSet.map(function(dev) {
+            console.log("Device type is " + dev.deviceType);
 				return dev.deviceType;
 			}));
 		});

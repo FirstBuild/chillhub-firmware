@@ -11,6 +11,8 @@ var Firebase = require("firebase");
 var util = require("util");
 
 var messageRelay = function(data) {
+   console.log("messageRelay called.");
+   return;
 	var myFirebaseRef = new Firebase(firebaseUrl + 
 		data.devId + "/status");
 	
@@ -18,11 +20,9 @@ var messageRelay = function(data) {
 };
 
 var deviceAnnounce = function(devlist) {
+   return;
 	var myFirebaseRef = new Firebase(firebaseUrl);
 
-   console.log("Adding device.");
-   console.log(devlist);
-	
 	myFirebaseRef.set(devlist);
 };
 
