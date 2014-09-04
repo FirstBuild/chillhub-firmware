@@ -27,21 +27,23 @@ function ChillhubDevice(ttyPath, receive) {
 			console.log(err);
 			return;
 		}
+
+      console.log("Serial port open.");
 		
-		self.tty.on('data', function(data) {
-			// network byte order is big endian... let's go with that
-			self.buf = self.buf.concat((new stream.Reader(data, stream.BIG_ENDIAN)).readBytes(data.length));
-			while(self.buf.length > self.buf[0]) {
-				msg = self.buf.slice(1,self.buf[0]+1);
-				self.buf = self.buf.slice(self.buf[0]+1,self.buf.length);
-				if (msg.length > 0)
-					routeIncomingMessage(msg);
-			}
-		});
-		self.tty.on('error', function(err) {
-			console.log('serial error:');
-			console.log(err);
-		});
+      self.tty.on('data', function(data) {
+         // network byte order is big endian... let's go with that
+         self.buf = self.buf.concat((new stream.Reader(data, stream.BIG_ENDIAN)).readBytes(data.length));
+         while(self.buf.length > self.buf[0]) {
+            msg = self.buf.slice(1,self.buf[0]+1);
+            self.buf = self.buf.slice(self.buf[0]+1,self.buf.length);
+            if (msg.length > 0)
+         routeIncomingMessage(msg);
+         }
+      });
+      self.tty.on('error', function(err) {
+         console.log('serial error:');
+         console.log(err);
+      });
 	
 		self.send = function(data) {
 			// parse data into the format that usb devices expect and transmit it
@@ -89,6 +91,8 @@ function ChillhubDevice(ttyPath, receive) {
 	function routeIncomingMessage(data) {
 		// parse into whatever form and then send it along
 		var jsonData = parseStreamToJson(data);
+
+      console.log("In routeIncomingMessage.");
 		
 		switch (jsonData.type) {
 			case 0x00:
