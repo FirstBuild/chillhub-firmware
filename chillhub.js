@@ -20,8 +20,9 @@ var messageRelay = function(data) {
 };
 
 var deviceAnnounce = function(devlist) {
-   return;
 	var myFirebaseRef = new Firebase(firebaseUrl);
+
+   console.log("In deviceAnnounce.");
 
 	myFirebaseRef.set(devlist);
 };
