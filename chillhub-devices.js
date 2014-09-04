@@ -20,6 +20,7 @@ function ChillhubDevice(ttyPath, receive) {
 		return (ttyPath == p);
 	};
 	
+   console.log("Trying to open serial port...");
 	this.tty.open(function(err) {
 		if (err) {
 			console.log('error opening serial port');
@@ -386,9 +387,9 @@ exports.init = function(receiverCallback, deviceListCallback) {
 			});
 			
 			thenSet = nowSet;
-			/*deviceListCallback(devSet.map(function(dev) {
+			deviceListCallback(devSet.map(function(dev) {
 				return dev.deviceType;
-			}));*/
+			}));
 		});
 	}, 500);
 };
