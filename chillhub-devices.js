@@ -117,7 +117,7 @@ function ChillhubDevice(ttyPath, receive) {
 			case 0x06: // get time
 				self.send({
 					type: 0x07,
-					content: self.encodeTime()
+					content: encodeTime()
 				});
 				break;
 			default:
@@ -231,13 +231,8 @@ function ChillhubDevice(ttyPath, receive) {
 				outstream.writeUInt8(0x01);
 			outstream.writeUInt8(array.length);
 			
-			var writeFcn;
 			for (var j = 0 ; j < array.length; j++) {
-				writeFcn = (j == 0) ? parseDataToStream(outstream, array[j], true) : writeFcn;
-				if (writeFcn)
-					writeFcn(array[j]);
-				else
-					parseDataToStream(outstream, array[j], false);
+				parseDataToStream(outstream, array[j], (j == 0));
 			}
 		};
 		
