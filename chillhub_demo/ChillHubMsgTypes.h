@@ -1,0 +1,45 @@
+// Chill Hub message types
+enum MsgTypes {
+  deviceIdMsgType = 0x00,
+  subscribeMsgType = 0x01,
+  unsubscribeMsgType = 0x02,
+  setAlarmMsgType = 0x03,
+  unsetAlarmMsgType = 0x04,
+  alarmNotifyMsgType = 0x05,
+  getTimeMsgType = 0x06,
+  timeResponseMsgType = 0x07,
+  // 0x08-0x0F Reserved for Future Use
+  filterAlertMsgType = 0x10,
+  waterFilterCalendarTimerMsgType = 0x11,
+  waterFilterCalendarPercentUsedMsgType = 0x12,
+  waterFilterHoursRemainingMsgType = 0x13,
+  waterUsageTimerMsgType = 0x14,
+  waterFilterUsageTimePercentUsedMsgType = 0x15,
+  waterFilterOuncesRemainingMsgType = 0x16,
+  commandFeaturesMsgType = 0x17,
+  temperatureAlertMsgType = 0x18,
+  freshFoodDisplayTemperatureMsgType = 0x19,
+  freezerDisplayTemperatureMsgType = 0x1A,
+  freshFoodSetpointTemperatureMsgType = 0x1B,
+  freezerSetpointTemperatureMsgType = 0x1C,
+  doorAlarmAlertMsgType = 0x1D,
+  iceMakerBucketStatusMsgType = 0x1E,
+  odorFilterCalendarTimerMsgType = 0x1F,
+  odorFilterPercentUsedMsgType = 0x20,
+  odorFilterHoursRemainingMsgType = 0x21,
+  doorStatusMsgType = 0x22,
+  dcSwitchStateMsgType = 0x23,
+  acInputStateMsgType = 0x24,
+  iceMakerMoldThermistorTemperatureMsgType = 0x25,
+  iceCabinetThermistorTemperatureMsgType = 0x26,
+  hotWaterThermistor1TemperatureMsgType = 0x27,
+  hotWaterThermistor2TemperatureMsgType = 0x28,
+  dctSwitchStateMsgType = 0x29,
+  relayStatusMsgType = 0x2A,
+  ductDoorStatusMsgType = 0x2B,
+  iceMakerStateSelectionMsgType = 0x2C,
+  iceMakerOperationalStateMsgType = 0x2D
+  // 0x2E-0x4F Reserved for Future Use
+  // 0x50-0xFF User Defined Messages
+};
+
