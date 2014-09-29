@@ -66,8 +66,8 @@ function ChillhubDevice(ttyPath, receive) {
 				type: 0x05,
 				content: msgContent
 			});
-		}
-	};
+		};
+	}
 	
 	function encodeTime(id) {
 		var now = new Date();
@@ -81,7 +81,7 @@ function ChillhubDevice(ttyPath, receive) {
 				numericValue: val
 			};
 		});
-	};
+	}
 	
 	function routeIncomingMessage(data) {
 		// parse into whatever form and then send it along
@@ -111,7 +111,7 @@ function ChillhubDevice(ttyPath, receive) {
 				console.log(self.deviceType + ' ALARM_UNSETS (' + jsonData.content + ') !');
 				if (self.cronJobs[jsonData.content]) {
 					self.cronJobs[jsonData.content].stop();
-					self.cronJobs[jsonData.content] = null;
+					delete self.cronJobs[jsonData.content];
 				}
 				break;
 			case 0x06: // get time
@@ -133,7 +133,7 @@ function ChillhubDevice(ttyPath, receive) {
 				case 0x00: // no data
 					readFcn = function(stream) {
 						return;
-					}
+					};
 					break;
 				case 0x01: // array
 					readFcn = parseArrayFromStream;
@@ -174,7 +174,7 @@ function ChillhubDevice(ttyPath, receive) {
 				case 0x09: // js object
 					readFcn = parseObjectFromStream;
 					break;
-				case 0x10: // boolean (could also be done as a uint8)
+				case 0x0A: // boolean (could also be done as a uint8)
 					readFcn = parseBooleanFromStream;
 					break;
 			}
@@ -265,12 +265,12 @@ function ChillhubDevice(ttyPath, receive) {
 				if (doWriteType) 
 					outstream.writeUInt8(objType.id);
 				outstream[objType.fcn](num.numericValue);
-			}
+		};
 		};
 		
 		var parseObjectToStream = function(outstream, obj, doWriteType) {
 			if (doWriteType)
-				outstream.writeUInt8(0x11);
+				outstream.writeUInt8(0x09);
 			outstream.writeUInt8(Object.keys(obj).length);
 			for (var field in obj) {
 				outstream.parseStringToStream(outstream, field, false);
@@ -280,7 +280,7 @@ function ChillhubDevice(ttyPath, receive) {
 		
 		var parseBooleanToStream = function(outstream, bool, doWriteType) {
 			if (doWriteType)
-				outstream.writeUInt8(0x12);
+				outstream.writeUInt8(0x0A);
 			outstream.writeUInt8(message.content?0x01:0x00);
 		};
 		
@@ -309,7 +309,7 @@ function ChillhubDevice(ttyPath, receive) {
 					parseFcn = parseNothingToStream;
 					break;
 				default:
-					if (data['numericType'])
+					if (data.numericType)
 						parseFcn = parseNumericObjectToStream(data);
 					else
 						parseFcn = parseObjectToStream;
@@ -324,11 +324,10 @@ function ChillhubDevice(ttyPath, receive) {
 		return writer.toArray();
 	}
 
-	function cleanup() {
-		self.cronJobs.map(function(j) {
-			j.stop();
-		});
-	}
+	self.cleanup = function() {
+		for (var j in self.cronJobs)
+			self.cronJobs[j].stop();
+	};
 }
 
 var devSet = [];
@@ -342,7 +341,6 @@ exports.init = function(receiverCallback, deviceListCallback) {
 	};
 		
 	// watch for new devices
-	//monitor.on('change', function() {
 	setInterval(function() {
 		var devices = serial.list(function(err, ports) {
 			if (err) {
@@ -377,7 +375,6 @@ exports.init = function(receiverCallback, deviceListCallback) {
 				deleteSet.map(function(e) {
 					e.cleanup();
 				});
-				delete deleteSet;
 			});
 			
 			thenSet = nowSet;
@@ -385,7 +382,7 @@ exports.init = function(receiverCallback, deviceListCallback) {
 				return dev.deviceType;
 			}));*/
 		});
-	}, 500);
+	}, 1500);
 };
 
 exports.subscriberBroadcast = function(type, data) {
