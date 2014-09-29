@@ -12,9 +12,9 @@ The ChillHub system expects to work with USB devices that are of the CDC (Commun
 
 The ChillHub receives and transmits packetized data to/from USB peripherals.  A data packet has the following format.
 
-|**Byte Number**|0|1|2-N|
-|-----------|-|-|---|
-|**Contents**|Length|Message Type|Payload|
+**Byte Number** | 0 | 1 | 2-N
+--------------- | - | - | ---
+**Contents**|Length|Message Type|Payload
 
 The Length field represents the number of bytes in the packet, not including the length field itself.
 
