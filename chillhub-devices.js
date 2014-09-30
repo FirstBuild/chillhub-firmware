@@ -16,12 +16,14 @@ function ChillhubDevice(ttyPath, receive) {
 	this.buf = [];
 	this.cronJobs = {};
 	
-	this.ttyPath = ttyPath;
-	this.tty = new serial.SerialPort(ttyPath, { 
+	this.uid = ttyPath;
+	this.tty = new serial.SerialPort('/dev/'+ttyPath, { 
 		baudrate: 115200, 
 		disconnectedCallback: function(err) {
-			console.log('error in disconnectedCallback');
-			console.log(err);
+			if (err) {
+				console.log('error in disconnectedCallback');
+				console.log(err);
+			}
 		}
 	});
 	
@@ -345,13 +347,13 @@ function ChillhubDevice(ttyPath, receive) {
 	};
 }
 
-var devices = [];
+var devices = {};
 
 exports.init = function(receiverCallback, deviceListCallback) {
 	var filePattern = /^ttyACM[0-9]{1,2}$/;
 	
 	var callbackWrapper = function(dev, msg) {
-		msg.devId = devices.indexOf(dev);
+		msg.devId = dev.uid;
 		receiverCallback(msg);
 	};
 	
@@ -362,7 +364,7 @@ exports.init = function(receiverCallback, deviceListCallback) {
 		
 		files.forEach(function(filename) {
 			console.log('registering new USB device ' + filename);
-			devices[filename] = new ChillhubDevice('/dev/'+filename, callbackWrapper);
+			devices[filename] = new ChillhubDevice(filename, callbackWrapper);
 		});
 	});
 	
@@ -379,7 +381,7 @@ exports.init = function(receiverCallback, deviceListCallback) {
 			}
 			else if (!devices[filename] && exists) {
 				console.log('registering new USB device ' + filename);
-				devices[filename] = new ChillhubDevice('/dev/'+filename, callbackWrapper);
+				devices[filename] = new ChillhubDevice(filename, callbackWrapper);
 			}
 		});
 		
@@ -431,9 +433,10 @@ exports.subscriberBroadcast = function(type, data) {
 		}
 	};
 	
-	devices.forEach(function(ele) {
-		if (ele.subscriptions.has(message.type)) {
-			ele.send(message);
+	for (var j in devices) {
+		if (devices[j].subscriptions.has(message.type)) {
+			console.log('SENDING ' + message.type + ' to ' + devices[j].deviceType);
+			devices[j].send(message);
 		}
-	});
+	}
 };
