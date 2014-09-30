@@ -1,24 +1,29 @@
-var util = require('util');
-var events = require('events');
+//var util = require('util');
+//var events = require('events');
 var serial = require('serialport');
+var fs = require('fs');
 var stream = require('binary-stream');
 var sets = require('simplesets');
 
 var CronJob = require('cron').CronJob;
-var monitor = require('usb-detection');
+//var monitor = require('usb-detection');
 
 function ChillhubDevice(ttyPath, receive) {
+	var self = this;
+	
 	this.deviceType = '';
 	this.subscriptions = new sets.Set([]);
-	this.tty = new serial.SerialPort(ttyPath, { baudrate: 115200 });
 	this.buf = [];
 	this.cronJobs = {};
 	
-	var self = this;
-	
-	this.hasPath = function(p) {
-		return (ttyPath == p);
-	};
+	this.ttyPath = ttyPath;
+	this.tty = new serial.SerialPort(ttyPath, { 
+		baudrate: 115200, 
+		disconnectedCallback: function(err) {
+			console.log('error in disconnectedCallback');
+			console.log(err);
+		}
+	});
 	
 	this.tty.open(function(err) {
 		if (err) {
@@ -39,6 +44,10 @@ function ChillhubDevice(ttyPath, receive) {
 		});
 		self.tty.on('error', function(err) {
 			console.log('serial error:');
+			console.log(err);
+		});
+		self.tty.on('disconnect', function(err) {
+			console.log('error disconnecting?');
 			console.log(err);
 		});
 	
@@ -265,7 +274,7 @@ function ChillhubDevice(ttyPath, receive) {
 				if (doWriteType) 
 					outstream.writeUInt8(objType.id);
 				outstream[objType.fcn](num.numericValue);
-		};
+			};
 		};
 		
 		var parseObjectToStream = function(outstream, obj, doWriteType) {
@@ -281,7 +290,7 @@ function ChillhubDevice(ttyPath, receive) {
 		var parseBooleanToStream = function(outstream, bool, doWriteType) {
 			if (doWriteType)
 				outstream.writeUInt8(0x0A);
-			outstream.writeUInt8(message.content?0x01:0x00);
+			outstream.writeUInt8(bool?0x01:0x00);
 		};
 		
 		var parseNothingToStream = function(outstream, data, doWriteType) {
@@ -327,62 +336,57 @@ function ChillhubDevice(ttyPath, receive) {
 	self.cleanup = function() {
 		for (var j in self.cronJobs)
 			self.cronJobs[j].stop();
+		self.tty.close(function(err) {
+			if (err) {
+				console.log('error closing serial port');
+				console.log(err);
+			}
+		});
 	};
 }
 
-var devSet = [];
+var devices = [];
 
 exports.init = function(receiverCallback, deviceListCallback) {
-	var thenSet = new sets.Set([]);
+	var filePattern = /^ttyACM[0-9]{1,2}$/;
 	
 	var callbackWrapper = function(dev, msg) {
-		msg.devId = devSet.indexOf(dev);
+		msg.devId = devices.indexOf(dev);
 		receiverCallback(msg);
 	};
-		
-	// watch for new devices
-	setInterval(function() {
-		var devices = serial.list(function(err, ports) {
-			if (err) {
-				console.log('error listing serial ports...');
-				console.log(err);
-				return;
-			}
-			
-			var nowSet = new sets.Set(ports.map(function(port) {
-				return port.comName;
-			}));
-			
-			// if some device is in devices but previously wasn't, register it
-			nowSet.difference(thenSet).array().forEach(function(ele) {
-				console.log('registering new USB device ' + ele);
-				devSet.push(new ChillhubDevice(ele, callbackWrapper));
-			});
-			
-			// if some device was in devices but now isn't, destroy it
-			var anyDeviceRemoved = false;
-			thenSet.difference(nowSet).array().forEach(function(ele) {
-				console.log('unregistering USB device ' + ele);
-				anyDeviceRemoved = true;
-				// almost certainly a better way of doing this, but couldn't say what it is...
-				var deleteSet = devSet.filter(function(dev) {
-					return dev.hasPath(ele);
-				});
-				devSet = devSet.filter(function(dev) {
-					return !dev.hasPath(ele);
-				});
-				
-				deleteSet.map(function(e) {
-					e.cleanup();
-				});
-			});
-			
-			thenSet = nowSet;
-			/*deviceListCallback(devSet.map(function(dev) {
-				return dev.deviceType;
-			}));*/
+	
+	fs.readdir('/dev/', function(err, files) {
+		files = files.filter(function(file) {
+			return filePattern.test(file);
 		});
-	}, 1500);
+		
+		files.forEach(function(filename) {
+			console.log('registering new USB device ' + filename);
+			devices[filename] = new ChillhubDevice('/dev/'+filename, callbackWrapper);
+		});
+	});
+	
+	// watch for new devices
+	fs.watch('/dev/', function(event, filename) {
+		if (!filePattern.test(filename))
+			return;
+		
+		fs.exists('/dev/'+filename, function (exists) {
+			if (devices[filename] && !exists) {
+				console.log('unregistering USB device ' + filename);
+				devices[filename].cleanup();
+				delete devices[filename];
+			}
+			else if (!devices[filename] && exists) {
+				console.log('registering new USB device ' + filename);
+				devices[filename] = new ChillhubDevice('/dev/'+filename, callbackWrapper);
+			}
+		});
+		
+		/*deviceListCallback(devices.map(function(dev) {
+			return dev.deviceType;
+		}));*/
+	});
 };
 
 exports.subscriberBroadcast = function(type, data) {
@@ -396,10 +400,10 @@ exports.subscriberBroadcast = function(type, data) {
 		waterFilterOuncesRemaining: { id: 0x16, format: 'U32' },
 		commandFeatures: { id: 0x17, format: 'U8' },
 		temperatureAlert: { id: 0x18, format: 'U8' },
-		freshFoodTemperatureDisplay: { id: 0x19, format: 'U8' },
-		freezerTemperatureDisplay: { id: 0x1A, format: 'U8' },
-		freshFoodTemperatureSetpoint: { id: 0x1B, format: 'U8' },
-		freezerTemperatureSetpoint: { id: 0x1C, format: 'U8' },
+		freshFoodTemperatureDisplay: { id: 0x19, format: 'I8' },
+		freezerTemperatureDisplay: { id: 0x1A, format: 'I8' },
+		freshFoodTemperatureSetpoint: { id: 0x1B, format: 'I8' },
+		freezerTemperatureSetpoint: { id: 0x1C, format: 'I8' },
 		doorAlarmAlert: { id: 0x1D, format: 'U8' },
 		iceMakerBucketStatus: { id: 0x1E, format: 'U8' },
 		odorFilterCalendarTimer: { id: 0x1F, format: 'U16' },
@@ -408,8 +412,8 @@ exports.subscriberBroadcast = function(type, data) {
 		doorState: { id: 0x22, format: 'U8' },
 		dcSwitchState: { id: 0x23, format: 'U8' },
 		acInputState: { id: 0x24, format: 'U8' },
-		iceMakerMoldThermistorTemperature: { id: 0x25, format: 'U16' },
-		iceCabinetThermistorTemperature: { id: 0x26, format: 'U16' },
+		iceMakerMoldThermistorTemperature: { id: 0x25, format: 'I16' },
+		iceCabinetThermistorTemperature: { id: 0x26, format: 'I16' },
 		hotWaterThermistor1Temperature: { id: 0x27, format: 'U16' },
 		hotWaterThermistor2Temperature: { id: 0x28, format: 'U16' },
 		dctSwitchState: { id: 0x29, format: 'U8' },
@@ -427,7 +431,7 @@ exports.subscriberBroadcast = function(type, data) {
 		}
 	};
 	
-	devSet.forEach(function(ele) {
+	devices.forEach(function(ele) {
 		if (ele.subscriptions.has(message.type)) {
 			ele.send(message);
 		}
