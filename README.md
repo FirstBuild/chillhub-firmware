@@ -39,7 +39,7 @@ void setAlarm(unsigned char ID, char* cronString, unsigned char strLength, chill
 void unsetAlarm(unsigned char ID);
 void getTime(chillhubCallbackFunction cb);
 ```
-These functions give your USB device the ability to find out the current local real-time as well as to be notified when particular times occur.  Note that the ID field in setAlarm and unsetAlarm is a unique identifier for you to manage your device's alarms.  Further, note that the callback functions used here accepts a ```c++ unsigned char[4]``` argument and, as noted below, the argument's contents will be _[month, day, hour, minute]_.
+These functions give your USB device the ability to find out the current local real-time as well as to be notified when particular times occur.  Note that the ID field in setAlarm and unsetAlarm is a unique identifier for you to manage your device's alarms.  Further, note that the callback functions used here accepts a ```unsigned char[4]``` argument and, as noted below, the argument's contents will be _[month, day, hour, minute]_.
 
 ###Data to/from the Cloud
 ```c++
