@@ -1,14 +1,11 @@
-//var util = require('util');
-//var events = require('events');
 var serial = require('serialport');
 var fs = require('fs');
 var stream = require('binary-stream');
 var sets = require('simplesets');
 
 var CronJob = require('cron').CronJob;
-//var monitor = require('usb-detection');
 
-function ChillhubDevice(ttyPath, receive) {
+function ChillhubDevice(ttyPath, receive, announce) {
 	var self = this;
 	
 	this.deviceType = '';
@@ -102,6 +99,7 @@ function ChillhubDevice(ttyPath, receive) {
 			case 0x00:
 				self.deviceType = jsonData.content;
 				console.log('REGISTERed device "'+self.deviceType+'"!');
+				announce();
 				break;
 			case 0x01: // subscribe to data stream
 				console.log(self.deviceType + ' SUBSCRIBEs to ' + jsonData.content + '!');
@@ -338,12 +336,6 @@ function ChillhubDevice(ttyPath, receive) {
 	self.cleanup = function() {
 		for (var j in self.cronJobs)
 			self.cronJobs[j].stop();
-		self.tty.close(function(err) {
-			if (err) {
-				console.log('error closing serial port');
-				console.log(err);
-			}
-		});
 	};
 }
 
@@ -351,6 +343,13 @@ var devices = {};
 
 exports.init = function(receiverCallback, deviceListCallback) {
 	var filePattern = /^ttyACM[0-9]{1,2}$/;
+	
+	var listDevices = function() {
+		var devList = [];
+		for (var dev in devices)
+			devList.push(devices[dev].deviceType);
+		deviceListCallback(devList);
+	}
 	
 	var callbackWrapper = function(dev, msg) {
 		msg.devId = dev.uid;
@@ -364,7 +363,7 @@ exports.init = function(receiverCallback, deviceListCallback) {
 		
 		files.forEach(function(filename) {
 			console.log('registering new USB device ' + filename);
-			devices[filename] = new ChillhubDevice(filename, callbackWrapper);
+			devices[filename] = new ChillhubDevice(filename, callbackWrapper, listDevices);
 		});
 	});
 	
@@ -378,16 +377,13 @@ exports.init = function(receiverCallback, deviceListCallback) {
 				console.log('unregistering USB device ' + filename);
 				devices[filename].cleanup();
 				delete devices[filename];
+				listDevices();
 			}
 			else if (!devices[filename] && exists) {
 				console.log('registering new USB device ' + filename);
-				devices[filename] = new ChillhubDevice(filename, callbackWrapper);
+				devices[filename] = new ChillhubDevice(filename, callbackWrapper, listDevices);
 			}
 		});
-		
-		/*deviceListCallback(devices.map(function(dev) {
-			return dev.deviceType;
-		}));*/
 	});
 };
 
