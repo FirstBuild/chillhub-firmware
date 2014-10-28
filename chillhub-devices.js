@@ -4,6 +4,8 @@ var stream = require('binary-stream');
 var sets = require('simplesets');
 var Firebase = require("firebase");
 
+var FBURI = "" // root url for Firebase
+
 var CronJob = require('cron').CronJob;
 
 function ChillhubDevice(ttyPath, receive, announce) {
@@ -13,6 +15,7 @@ function ChillhubDevice(ttyPath, receive, announce) {
 	this.subscriptions = new sets.Set([]);
 	this.buf = [];
 	this.cronJobs = {};
+	self.schema = ""
 	
 	this.uid = ttyPath;
 	this.tty = new serial.SerialPort('/dev/'+ttyPath, { 
@@ -25,10 +28,12 @@ function ChillhubDevice(ttyPath, receive, announce) {
 		}
 	});
 	
-	this.cloudEndpoint = new Firebase("something here");
-	cloudEndpoint.on( "value", function(data) {
-		for (var field in data) {
-			self.send(data[field]);
+	//Load Schema from Firebase
+	//FIXME define deviceType
+	//!\ Asynchronous call
+	loadSchema(self.deviceType,function(data){
+		if(data){
+			self.schema = data
 		}
 	});
 	
@@ -73,6 +78,15 @@ function ChillhubDevice(ttyPath, receive, announce) {
 			});
 		};
 	});
+
+	function loadSchema(deviceType){
+		var firebase = new Firebase(FBURI);
+		var schemaRef = firebase.child('schemas').child(deviceType)
+
+		schemaRef.once('value',function(snap){
+			console.log(snap.val())
+		})
+	}
 	
 	function cronCallback(id) {
 		return function() {
