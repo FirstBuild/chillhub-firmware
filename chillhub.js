@@ -5,6 +5,8 @@ var devices = require('./chillhub-devices');
 var Firebase = require("firebase");
 var util = require("util");
 
+var schemas = new Firebase('schemas');
+
 var messageRelay = function(data) {
 	console.log(data);
 	var myFirebaseRef = new Firebase("https://intense-heat-7203.firebaseio.com/homes/home1/devices" + 

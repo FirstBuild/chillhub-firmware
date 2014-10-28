@@ -2,6 +2,7 @@ var serial = require('serialport');
 var fs = require('fs');
 var stream = require('binary-stream');
 var sets = require('simplesets');
+var Firebase = require("firebase");
 
 var CronJob = require('cron').CronJob;
 
@@ -21,6 +22,13 @@ function ChillhubDevice(ttyPath, receive, announce) {
 				console.log('error in disconnectedCallback');
 				console.log(err);
 			}
+		}
+	});
+	
+	this.cloudEndpoint = new Firebase("something here");
+	cloudEndpoint.on( "value", function(data) {
+		for (var field in data) {
+			self.send(data[field]);
 		}
 	});
 	
@@ -131,6 +139,7 @@ function ChillhubDevice(ttyPath, receive, announce) {
 				break;
 			default:
 				jsonData.device = self.deviceType;
+				cloudEndpoint.set(jsonData);
 				receive(self, jsonData);
 		}	
 	}
