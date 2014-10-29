@@ -17,16 +17,19 @@ exports.updateObjectFieldFirebase = function(objectId,field,value){
 
 }
 
+exports.addListener=function(collection,objectId,field,callback){
+	var fieldRef = fb.child(collection).child(objectId).child(field)
+	fieldRef.on("value",function(snap){
+		console.log("listener on"+snap.val());
+		//sendMSG to Arduino
+		callback(snap.val());
+	})
+}
+
 // Load schema from Firebase for a deviceType and return values in an array
 exports.loadSchema = function(deviceType,callback){
-	
 	var schemaRef = fb.child('schemas').child(deviceType)
-
-	var schema = []
 	schemaRef.once('value',function(snap){
-		_.each(snap.val().split(','),function(i,v){
-			schema.push(i)
-		})
-		callback(this)
-	},schema) //return as an array in callback
+		callback(snap.val())
+	})
 }

@@ -16,7 +16,7 @@
     "appliances"
   ],
   "dependencies": {
-    "binary-stream": "*",
+    "binary-stream": "git+https://github.com/GEMakers/binary-stream.git",
     "cron": "*",
     "firebase": "^1.2.0-beta.1-0",
     "green-bean": "*",

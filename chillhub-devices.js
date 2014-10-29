@@ -12,12 +12,12 @@ var CronJob = require('cron').CronJob;
 
 function ChillhubDevice(ttyPath, receive, announce) {
 	var self = this;
-	 
+	
 	this.deviceType = '';
 	this.subscriptions = new sets.Set([]);
 	this.buf = [];
 	this.cronJobs = {};
-	self.schema = [];
+	self.schema = {}
 	
 	this.uid = ttyPath;
 	this.tty = new serial.SerialPort('/dev/'+ttyPath, { 
@@ -57,12 +57,14 @@ function ChillhubDevice(ttyPath, receive, announce) {
 		});
 	
 		self.send = function(data) {
+			console.log("SEND DATA",data)
 			// parse data into the format that usb devices expect and transmit it
 			var dataBytes = parsers.parseJsonToStream(data);
 			var writer = new stream.Writer(dataBytes.length+1, stream.BIG_ENDIAN);
 			
 			writer.writeUInt8(dataBytes.length);
 			writer.writeBytes(dataBytes);
+			console.log("WRITER in send",writer.toArray());
 			self.tty.write(writer.toArray(), function(err) {
 				if (err) {
 					console.log('error writing to serial');
@@ -92,13 +94,29 @@ function ChillhubDevice(ttyPath, receive, announce) {
 				self.deviceType = jsonData.content;
 				console.log('REGISTERed device "'+self.deviceType+'"!');
 
-				// Load Schema of this device
+				// Load Schema for this deviceType
 				fbCom.loadSchema(self.deviceType,function(data){
 					console.log("schema DATA",data)
-					self.schema = data 
+					self.schema = data
+
+					//Attach listener to each field in schema
+					//FIXME get objectID dynamically
+					var objectId = "-J_M7uoN2pjqP8I7LD3T"
+					_.each(_.keys(self.schema),function(field){
+						// var field = f
+						fbCom.addListener("objects",objectId,field,function(value){
+							// send new value to Arduino
+							self.send({
+								type: self.schema[field].messageType,
+								content: {
+									numericType: self.schema[field].contentType,
+									numericValue: value //0-100
+								}
+							});
+						});
+					});
 				});
 
-				announce();
 				break;
 			case 0x01: // subscribe to data stream
 				console.log(self.deviceType + ' SUBSCRIBEs to ' + jsonData.content + '!');
@@ -133,9 +151,14 @@ function ChillhubDevice(ttyPath, receive, announce) {
 				console.log("TYPE received",jsonData.type)
 				console.log("CONTENT received",jsonData.content)
 
-				//Find what type it corresponds to in schema (-80)
-				var type = self.schema[80 - jsonData.type]
+				//Find what type it corresponds to in schema receives 81, corresponds to 50
+				//FIXME better way of doing this computation
+				var typeNumber = "0x"+(jsonData.type-31)
 
+				//Find in schema which field has this messageType
+				var type = _.findWhere(self.schema,{messageType: typeNumber}).fieldName
+				
+				//Update the corresponding value in Firebase
 				fbCom.updateObjectFieldFirebase("-J_M7uoN2pjqP8I7LD3T",type,jsonData.content)
 		}	
 	}	
