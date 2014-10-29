@@ -2,8 +2,10 @@
 * Parsing functions
 */
 
+var stream = require('binary-stream');
 
-function parseStreamToJson(data) {
+// exports function to make them available to other files
+exports.parseStreamToJson = function(data) {
 	var getDataReadFunction = function(instream) {
 		var readFcn;
 		switch(instream.readUInt8()) {
@@ -102,7 +104,7 @@ function parseStreamToJson(data) {
 	};
 }
 
-function parseJsonToStream(message) {
+exports.parseJsonToStream = function(message) {
 	var parseArrayToStream = function(outstream, array, doWriteType) {
 		if (doWriteType)
 			outstream.writeUInt8(0x01);

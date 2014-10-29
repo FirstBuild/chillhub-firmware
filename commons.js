@@ -2,7 +2,7 @@
 * Commons functions usefull accros the app
 */
 
-function encodeTime(id) {
+exports.encodeTime =function(id) {
 	var now = new Date();
 	var dateField = [now.getMonth(), now.getDate(), now.getHours(), now.getMinutes()];
 	if (id) 

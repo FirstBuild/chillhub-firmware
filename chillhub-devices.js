@@ -2,13 +2,12 @@ var serial = require('serialport');
 var fs = require('fs');
 var stream = require('binary-stream');
 var sets = require('simplesets');
-var Firebase = require("firebase");
+
+var _ = require("underscore");
 
 var commons = require('./commons');
-var parsers = require('./parsing')
-
-var FBURI = "" // root url for Firebase
-
+var parsers = require('./parsing');
+var fbCom = require('./firebaseCom');
 var CronJob = require('cron').CronJob;
 
 function ChillhubDevice(ttyPath, receive, announce) {
@@ -28,14 +27,6 @@ function ChillhubDevice(ttyPath, receive, announce) {
 				console.log('error in disconnectedCallback');
 				console.log(err);
 			}
-		}
-	});
-	
-	//Load Schema from Firebase
-	//!\ Asynchronous call
-	loadSchema(self.deviceType,function(data){
-		if(data){
-			self.schema = data
 		}
 	});
 	
@@ -81,22 +72,6 @@ function ChillhubDevice(ttyPath, receive, announce) {
 		};
 	});
 	
-	// Load schema from Firebase for a deviceType and return values in an array
-	function loadSchema(deviceType,callback){
-		var firebase = new Firebase(FBURI);
-		var schemaRef = firebase.child('schemas').child(deviceType)
-
-		var schema = []
-		schemaRef.once('value',function(snap){
-			$.each(snap.val().split(','),function(i,v){
-				schema.push(v)
-			})
-			callback(this)
-		},schema)
-
-		//return as an array
-	}
-	
 	function cronCallback(id) {
 		return function() {
 			var msgContent = commons.encodeTime(id);
@@ -110,7 +85,7 @@ function ChillhubDevice(ttyPath, receive, announce) {
 	
 	function routeIncomingMessage(data) {
 		// parse into whatever form and then send it along
-		var jsonData = parseStreamToJson(data);
+		var jsonData = parsers.parseStreamToJson(data);
 		
 		switch (jsonData.type) {
 			case 0x00:
@@ -118,10 +93,11 @@ function ChillhubDevice(ttyPath, receive, announce) {
 				console.log('REGISTERed device "'+self.deviceType+'"!');
 
 				// Load Schema of this device
-				loadSchema(self.deviceType,function(data){
+				fbCom.loadSchema(self.deviceType,function(data){
 					console.log("schema DATA",data)
 					self.schema = data 
 				});
+
 				announce();
 				break;
 			case 0x01: // subscribe to data stream
@@ -154,8 +130,13 @@ function ChillhubDevice(ttyPath, receive, announce) {
 				break;
 			default:
 				jsonData.device = self.deviceType;
-				cloudEndpoint.set(jsonData);
-				receive(self, jsonData);
+				console.log("TYPE received",jsonData.type)
+				console.log("CONTENT received",jsonData.content)
+
+				//Find what type it corresponds to in schema (-80)
+				var type = self.schema[80 - jsonData.type]
+
+				fbCom.updateObjectFieldFirebase("-J_M7uoN2pjqP8I7LD3T",type,jsonData.content)
 		}	
 	}	
 
