@@ -302,3 +302,14 @@ Note that (whenever a method of delivering data from the Cloud Service to the Ch
 Because JavaScript lacks numeric data types other than “number,” and the microcontrollers likely to be used in the various USB peripherals will need to know a priori how much memory to allocate, we define a standardized JSON for C-style numeric data types.
 
 A numeric JSON object then has exactly two fields.  The first is numericType and contains one of the self-explaining string values “U8”, “U16”, “U32”, “I8”, “I16”, or “I32”.  The second is numericValue and contains the value of the number in question.
+
+Transfert to Raspberry PI
+----------------------
+`rsync -avz . --exclude=node_modules/ --exclude=.git/ -e ssh pi@10.202.0.84:/home/pi/chillhub`
+
+once on Pi you can install all the npm dependencies with
+`npm install`
+
+then launch the program
+
+`sudo node chillhub.js`
