@@ -83,7 +83,7 @@ For example, suppose the USB peripheral sends to the ChillHub the string _“p0 
  
 This identifier is also used if the USB peripheral wishes to cancel that cron entry.
 
-Additionally, the USB peripheral may, at any time, request the current time by sending the message 0x06 to the ChillHub.  The ChillHub will respond with an array of uint8s specifying the time in the same format as above.
+Additionally, the USB peripheral may, at any time, request the current time by sending the message type 0x06 to the ChillHub.  The ChillHub will respond with message type 0x07 with an array of uint8s specifying the time in the same format as above.
 
 Payload Types
 -------------
