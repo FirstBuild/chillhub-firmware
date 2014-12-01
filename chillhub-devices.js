@@ -72,6 +72,11 @@ function ChillhubDevice(ttyPath, receive, announce) {
 				}
 			});
 		};
+
+      console.log("Calling open callback...");
+      if (self.onOpenCallback) {
+         self.onOpenCallback();
+      }
 	});
 	
 	function cronCallback(id) {
@@ -167,12 +172,21 @@ function ChillhubDevice(ttyPath, receive, announce) {
 		for (var j in self.cronJobs)
 			self.cronJobs[j].stop();
 	};
+
+   self.registerOpenCallback = function(func) {
+      self.onOpenCallback = func;
+   }
 }
 
 var devices = {};
 
 exports.init = function(receiverCallback, deviceListCallback) {
-	var filePattern = /^ttyACM[0-9]{1,2}$/;
+   if (process.platform === 'darwin') {
+      console.log("We are running on a Mac, look for tty.usbmodem devices.");
+	   var filePattern = /^tty.usbmodem[0-9]+$/;
+   } else {
+	   var filePattern = /^ttyACM[0-9]{1,2}$/;
+   }
 	
 	//similar to announce()
 	var listDevices = function() {
@@ -196,6 +210,19 @@ exports.init = function(receiverCallback, deviceListCallback) {
 		files.forEach(function(filename) {
 			console.log('registering new USB device ' + filename);
 			devices[filename] = new ChillhubDevice(filename, callbackWrapper, listDevices);
+         (function() {
+            var what = filename;
+            console.log("trying to register callback");
+            devices[filename].registerOpenCallback (function() {
+               devices[what].send({
+                  type: 0x08,
+                  content: {
+                     numericType: 'U8',
+                  numericValue: 1
+                  }
+               });
+            });
+         })();
 		});
 	});
 	
