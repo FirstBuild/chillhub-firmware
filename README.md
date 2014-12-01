@@ -32,7 +32,8 @@ The **Message Type** field is a 1-byte value that is meant to indicate to the re
 |0x05|Alarm Notify|Array of uint8|
 |0x06|Get Time|none|
 |0x07|Provide Time|Array of uint8|
-|0x08-0x0F|Reserved for Future Use|n/a|
+|0x08|Send Device ID|none|
+|0x09-0x0F|Reserved for Future Use|n/a|
 |0x10|filterAlert|Unsigned, 8-bit integer|
 |0x11|waterFilterCalendarTimer|Unsigned, 16-bit integer|
 |0x12|waterFilterCalendarPercentUsed|Unsigned, 8-bit integer|
