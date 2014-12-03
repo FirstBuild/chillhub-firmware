@@ -1,24 +1,34 @@
-var util = require('util');
-var events = require('events');
 var serial = require('serialport');
+var fs = require('fs');
 var stream = require('binary-stream');
 var sets = require('simplesets');
 
-var CronJob = require('cron').CronJob;
-var monitor = require('usb-detection');
+var _ = require("underscore");
 
-function ChillhubDevice(ttyPath, receive) {
-	this.deviceType = '';
-	this.subscriptions = new sets.Set([]);
-	this.tty = new serial.SerialPort(ttyPath, { baudrate: 115200 });
-	this.buf = [];
-	this.cronJobs = {};
-	
+var commons = require('./commons');
+var parsers = require('./parsing');
+var fbCom = require('./firebaseCom');
+var CronJob = require('cron').CronJob;
+
+function ChillhubDevice(ttyPath, receive, announce) {
 	var self = this;
 	
-	this.hasPath = function(p) {
-		return (ttyPath == p);
-	};
+	this.deviceType = '';
+	this.subscriptions = new sets.Set([]);
+	this.buf = [];
+	this.cronJobs = {};
+	self.schema = {}
+	
+	this.uid = ttyPath;
+	this.tty = new serial.SerialPort('/dev/'+ttyPath, { 
+		baudrate: 115200, 
+		disconnectedCallback: function(err) {
+			if (err) {
+				console.log('error in disconnectedCallback');
+				console.log(err);
+			}
+		}
+	});
 	
    console.log("Trying to open serial port...");
 	this.tty.open(function(err) {
@@ -30,28 +40,34 @@ function ChillhubDevice(ttyPath, receive) {
 
       console.log("Serial port open.");
 		
-      self.tty.on('data', function(data) {
-         // network byte order is big endian... let's go with that
-         self.buf = self.buf.concat((new stream.Reader(data, stream.BIG_ENDIAN)).readBytes(data.length));
-         while(self.buf.length > self.buf[0]) {
-            msg = self.buf.slice(1,self.buf[0]+1);
-            self.buf = self.buf.slice(self.buf[0]+1,self.buf.length);
-            if (msg.length > 0)
-         routeIncomingMessage(msg);
-         }
-      });
-      self.tty.on('error', function(err) {
-         console.log('serial error:');
-         console.log(err);
-      });
+		self.tty.on('data', function(data) {
+			// network byte order is big endian... let's go with that
+			self.buf = self.buf.concat((new stream.Reader(data, stream.BIG_ENDIAN)).readBytes(data.length));
+			while(self.buf.length > self.buf[0]) {
+				msg = self.buf.slice(1,self.buf[0]+1);
+				self.buf = self.buf.slice(self.buf[0]+1,self.buf.length);
+				if (msg.length > 0)
+					routeIncomingMessage(msg);
+			}
+		});
+		self.tty.on('error', function(err) {
+			console.log('serial error:');
+			console.log(err);
+		});
+		self.tty.on('disconnect', function(err) {
+			console.log('error disconnecting?');
+			console.log(err);
+		});
 	
 		self.send = function(data) {
+			console.log("SEND DATA",data)
 			// parse data into the format that usb devices expect and transmit it
-			var dataBytes = parseJsonToStream(data);
+			var dataBytes = parsers.parseJsonToStream(data);
 			var writer = new stream.Writer(dataBytes.length+1, stream.BIG_ENDIAN);
 			
 			writer.writeUInt8(dataBytes.length);
 			writer.writeBytes(dataBytes);
+			console.log("WRITER in send",writer.toArray());
 			self.tty.write(writer.toArray(), function(err) {
 				if (err) {
 					console.log('error writing to serial');
@@ -59,45 +75,56 @@ function ChillhubDevice(ttyPath, receive) {
 				}
 			});
 		};
+
+      console.log("Calling open callback...");
+      if (self.onOpenCallback) {
+         self.onOpenCallback();
+      }
 	});
 	
 	function cronCallback(id) {
 		return function() {
-			var msgContent =  encodeTime(id);
-
-         console.log("In cronCallback");
+			var msgContent = commons.encodeTime(id);
 			
 			self.send({
 				type: 0x05,
 				content: msgContent
 			});
-		}
-	};
-	
-	function encodeTime(id) {
-		var now = new Date();
-		var dateField = [now.getMonth(), now.getDate(), now.getHours(), now.getMinutes()];
-		if (id) 
-			dateField.splice(0, 0, id);
-		
-		return dateField.map(function(val) {
-			return {
-				numericType: 'U8',
-				numericValue: val
-			};
-		});
-	};
+		};
+	}
 	
 	function routeIncomingMessage(data) {
 		// parse into whatever form and then send it along
-		var jsonData = parseStreamToJson(data);
-
-      console.log("In routeIncomingMessage.");
+		var jsonData = parsers.parseStreamToJson(data);
 		
 		switch (jsonData.type) {
 			case 0x00:
 				self.deviceType = jsonData.content;
 				console.log('REGISTERed device "'+self.deviceType+'"!');
+
+				// Load Schema for this deviceType
+				fbCom.loadSchema(self.deviceType,function(data){
+					console.log("schema DATA",data)
+					self.schema = data
+
+					//Attach listener to each field in schema
+					//FIXME get objectID dynamically
+					var objectId = "-J_M7uoN2pjqP8I7LD3T"
+					_.each(_.keys(self.schema),function(field){
+						// var field = f
+						fbCom.addListener("objects",objectId,field,function(value){
+							// send new value to Arduino
+							self.send({
+								type: self.schema[field].messageType,
+								content: {
+									numericType: self.schema[field].contentType,
+									numericValue: value //0-100
+								}
+							});
+						});
+					});
+				});
+
 				break;
 			case 0x01: // subscribe to data stream
 				console.log(self.deviceType + ' SUBSCRIBEs to ' + jsonData.content + '!');
@@ -118,286 +145,108 @@ function ChillhubDevice(ttyPath, receive) {
 				console.log(self.deviceType + ' ALARM_UNSETS (' + jsonData.content + ') !');
 				if (self.cronJobs[jsonData.content]) {
 					self.cronJobs[jsonData.content].stop();
-					self.cronJobs[jsonData.content] = null;
+					delete self.cronJobs[jsonData.content];
 				}
 				break;
 			case 0x06: // get time
 				self.send({
 					type: 0x07,
-					content: encodeTime()
+					content: commons.encodeTime()
 				});
 				break;
 			default:
 				jsonData.device = self.deviceType;
-				receive(self, jsonData);
-		}	
-	}
-	
-	function parseStreamToJson(data) {
-		var getDataReadFunction = function(instream) {
-			var readFcn;
-			switch(instream.readUInt8()) {
-				case 0x00: // no data
-					readFcn = function(stream) {
-						return;
-					}
-					break;
-				case 0x01: // array
-					readFcn = parseArrayFromStream;
-					break;
-				case 0x02: // string
-					readFcn = parseStringFromStream;
-					break;
-				case 0x03: // numeric types
-					readFcn = function(stream) {
-						return stream.readUInt8();
-					};
-					break;
-				case 0x04:
-					readFcn = function(stream) {
-						return stream.readInt8();
-					};
-					break;
-				case 0x05:
-					readFcn = function(stream) {
-						return stream.readUInt16();
-					};
-					break;
-				case 0x06:
-					readFcn = function(stream) {
-						return stream.readInt16();
-					};
-					break;
-				case 0x07:
-					readFcn = function(stream) {
-						return stream.readUInt32();
-					};
-					break;
-				case 0x08:
-					readFcn = function(stream) {
-						return stream.readInt32();
-					};
-					break;
-				case 0x09: // js object
-					readFcn = parseObjectFromStream;
-					break;
-				case 0x10: // boolean (could also be done as a uint8)
-					readFcn = parseBooleanFromStream;
-					break;
-			}
-			return readFcn;
-		};
-		
-		var parseArrayFromStream = function(instream) {
-			var length = instream.readUInt8();
-			var readFcn = getDataReadFunction(instream);
-			
-			var array = [];
-			for (var j = 0; j < length; j++) {
-				array.push(readFcn(instream));
-			}
-			return array;
-		};
-	
-		var parseStringFromStream = function(instream) {
-			var length = instream.readUInt8();
-			return instream.readAscii(length);
-		};
-		
-		var parseObjectFromStream = function(instream) {
-			var length = instream.readUInt8();
-			var obj;
-			
-			for (var i = 0; i < length; i++) {
-				var fieldName = parseStringFromStream(instream);
-				obj[fieldName] = parseDataFromStream(instream);
-			}
-			
-			return obj;
-		};
-		
-		var parseBooleanFromStream = function(instream) {
-			return (instream.readUInt8() != 0);
-		};
-			
-		var parseDataFromStream = function(instream) {
-			var readFcn = getDataReadFunction(instream);
-			return readFcn(instream);
-		};
-		
-		var reader = new stream.Reader(data, stream.BIG_ENDIAN);
-		return {
-			type: reader.readUInt8(),
-			content: parseDataFromStream(reader)
-		};
-	}	
-	
-	function parseJsonToStream(message) {
-		var parseArrayToStream = function(outstream, array, doWriteType) {
-			if (doWriteType)
-				outstream.writeUInt8(0x01);
-			outstream.writeUInt8(array.length);
-			
-			for (var j = 0 ; j < array.length; j++) {
-				parseDataToStream(outstream, array[j], (j == 0));
-			}
-		};
-		
-		var parseStringToStream = function(outstream, str, doWriteType) {
-			if (doWriteType)
-				outstream.writeUInt8(0x02);
-			outstream.writeUInt8(str.length);
-			outstream.writeAscii(str);
-		};
-		
-		var parseNumericToStream = function(outstream, num, doWriteType) {
-			// default to I16
-			if (doWriteType)
-				outstream.writeUInt8(types[i].id);
-			outstream.writeInt16(num);
-		};
-		
-		var parseNumericObjectToStream = function(obj) {
-			var NUMERIC_TYPES = {
-				U8: { fcn: 'writeUInt8', id: 0x03 },
-				U16: { fcn: 'writeUInt16', id: 0x05 },
-				U32: { fcn: 'writeUInt32', id: 0x07 },
-				I8: { fcn: 'writeInt8', id: 0x04 },
-				I16: { fcn: 'writeInt16', id: 0x06 },
-				I32: { fcn: 'writeInt32', id: 0x08 }
-			};
-			var objType = NUMERIC_TYPES[obj.numericType];
-			
-			return function(outstream, num, doWriteType) {
-				if (doWriteType) 
-					outstream.writeUInt8(objType.id);
-				outstream[objType.fcn](num.numericValue);
-			}
-		};
-		
-		var parseObjectToStream = function(outstream, obj, doWriteType) {
-			if (doWriteType)
-				outstream.writeUInt8(0x11);
-			outstream.writeUInt8(Object.keys(obj).length);
-			for (var field in obj) {
-				outstream.parseStringToStream(outstream, field, false);
-				outstream.parseDataToStream(outstream, obj[field], true);
-			}
-		};
-		
-		var parseBooleanToStream = function(outstream, bool, doWriteType) {
-			if (doWriteType)
-				outstream.writeUInt8(0x12);
-			outstream.writeUInt8(message.content?0x01:0x00);
-		};
-		
-		var parseNothingToStream = function(outstream, data, doWriteType) {
-			if (doWriteType)
-				outstream.writeUInt8(0x00);
-		};
-		
-		var parseDataToStream = function(outstream, data, doWriteType) {
-			var parseFcn;
-			switch ( Object.prototype.toString.call(data) ) {
-				case '[object String]':
-					parseFcn = parseStringToStream;
-					break;
-				case '[object Boolean]':
-					parseFcn = parseBooleanToStream;
-					break;
-				case '[object Number]':
-					parseFcn = parseNumericToStream;
-					break;
-				case '[object Array]':
-					parseFcn = parseArrayToStream;
-					break;
-				case '[object Null]':
-				case '[object Undefined]':
-					parseFcn = parseNothingToStream;
-					break;
-				default:
-					if (data['numericType'])
-						parseFcn = parseNumericObjectToStream(data);
-					else
-						parseFcn = parseObjectToStream;
-					break;
-			}
-			parseFcn(outstream, data, doWriteType);
-		};
-		
-		var writer = new stream.Writer(255, stream.BIG_ENDIAN);
-		writer.writeUInt8(message.type);
-		parseDataToStream(writer, message.content, true);
-		return writer.toArray();
-	}
+				console.log("TYPE received",jsonData.type)
+				console.log("CONTENT received",jsonData.content)
 
-	function cleanup() {
-		self.cronJobs.map(function(j) {
-			j.stop();
-		});
-	}
+				//Find what type it corresponds to in schema receives 81, corresponds to 50
+				//FIXME better way of doing this computation
+				var typeNumber = "0x"+(jsonData.type-31)
+
+				//Find in schema which field has this messageType
+				var type = _.findWhere(self.schema,{messageType: typeNumber}).fieldName
+				
+				//Update the corresponding value in Firebase
+				fbCom.updateObjectFieldFirebase("-J_M7uoN2pjqP8I7LD3T",type,jsonData.content)
+		}	
+	}	
+
+	self.cleanup = function() {
+		for (var j in self.cronJobs)
+			self.cronJobs[j].stop();
+	};
+
+   self.registerOpenCallback = function(func) {
+      self.onOpenCallback = func;
+   }
 }
 
-var devSet = [];
+var devices = {};
 
 exports.init = function(receiverCallback, deviceListCallback) {
-	var thenSet = new sets.Set([]);
+   if (process.platform === 'darwin') {
+      console.log("We are running on a Mac, look for tty.usbmodem devices.");
+	   var filePattern = /^tty.usbmodem[0-9]+$/;
+   } else {
+	   var filePattern = /^ttyACM[0-9]{1,2}$/;
+   }
+	
+	//similar to announce()
+	var listDevices = function() {
+		var devList = [];
+		for (var dev in devices)
+			devList.push(devices[dev].deviceType);
+		deviceListCallback(devList);
+		//TODO add logic to send list of devices to Firebase
+	}
 	
 	var callbackWrapper = function(dev, msg) {
-		msg.devId = devSet.indexOf(dev);
+		msg.devId = dev.uid;
 		receiverCallback(msg);
 	};
-		
-	// watch for new devices
-	//monitor.on('change', function() {
-	setInterval(function() {
-		var devices = serial.list(function(err, ports) {
-			if (err) {
-				console.log('error listing serial ports...');
-				console.log(err);
-				return;
-			}
-			
-			var nowSet = new sets.Set(ports.map(function(port) {
-				return port.comName;
-			}));
-			
-			// if some device is in devices but previously wasn't, register it
-			nowSet.difference(thenSet).array().forEach(function(ele) {
-				console.log('registering new USB device ' + ele);
-				devSet.push(new ChillhubDevice(ele, callbackWrapper));
-			});
-			
-			// if some device was in devices but now isn't, destroy it
-			var anyDeviceRemoved = false;
-			thenSet.difference(nowSet).array().forEach(function(ele) {
-				console.log('unregistering USB device ' + ele);
-				anyDeviceRemoved = true;
-				// almost certainly a better way of doing this, but couldn't say what it is...
-				var deleteSet = devSet.filter(function(dev) {
-					return dev.hasPath(ele);
-				});
-				devSet = devSet.filter(function(dev) {
-					return !dev.hasPath(ele);
-				});
-				
-				deleteSet.map(function(e) {
-               try{
-					   e.cleanup();
-               }
-               catch(err){
-                  console.log("Error calling cleanup function.");
-               }
-				});
-				delete deleteSet;
-			});
-			
-			thenSet = nowSet;
-			deviceListCallback(devSet.map(function(dev) {
-				return dev.deviceType;
-			}));
+	
+	fs.readdir('/dev/', function(err, files) {
+		files = files.filter(function(file) {
+			return filePattern.test(file);
 		});
-	}, 500);
+		
+		files.forEach(function(filename) {
+			console.log('registering new USB device ' + filename);
+			devices[filename] = new ChillhubDevice(filename, callbackWrapper, listDevices);
+         (function() {
+            var what = filename;
+            console.log("trying to register callback");
+            devices[filename].registerOpenCallback (function() {
+               devices[what].send({
+                  type: 0x08,
+                  content: {
+                     numericType: 'U8',
+                  numericValue: 1
+                  }
+               });
+            });
+         })();
+		});
+	});
+	
+	// watch for new devices
+	fs.watch('/dev/', function(event, filename) {
+		if (!filePattern.test(filename))
+			return;
+		
+		fs.exists('/dev/'+filename, function (exists) {
+			if (devices[filename] && !exists) {
+				console.log('unregistering USB device ' + filename);
+				devices[filename].cleanup();
+				delete devices[filename];
+				listDevices();
+			}
+			else if (!devices[filename] && exists) {
+				console.log('registering new USB device ' + filename);
+				devices[filename] = new ChillhubDevice(filename, callbackWrapper, listDevices);
+			}
+		});
+	});
 };
 
 exports.subscriberBroadcast = function(type, data) {
@@ -411,10 +260,10 @@ exports.subscriberBroadcast = function(type, data) {
 		waterFilterOuncesRemaining: { id: 0x16, format: 'U32' },
 		commandFeatures: { id: 0x17, format: 'U8' },
 		temperatureAlert: { id: 0x18, format: 'U8' },
-		freshFoodTemperatureDisplay: { id: 0x19, format: 'U8' },
-		freezerTemperatureDisplay: { id: 0x1A, format: 'U8' },
-		freshFoodTemperatureSetpoint: { id: 0x1B, format: 'U8' },
-		freezerTemperatureSetpoint: { id: 0x1C, format: 'U8' },
+		freshFoodTemperatureDisplay: { id: 0x19, format: 'I8' },
+		freezerTemperatureDisplay: { id: 0x1A, format: 'I8' },
+		freshFoodTemperatureSetpoint: { id: 0x1B, format: 'I8' },
+		freezerTemperatureSetpoint: { id: 0x1C, format: 'I8' },
 		doorAlarmAlert: { id: 0x1D, format: 'U8' },
 		iceMakerBucketStatus: { id: 0x1E, format: 'U8' },
 		odorFilterCalendarTimer: { id: 0x1F, format: 'U16' },
@@ -423,8 +272,8 @@ exports.subscriberBroadcast = function(type, data) {
 		doorState: { id: 0x22, format: 'U8' },
 		dcSwitchState: { id: 0x23, format: 'U8' },
 		acInputState: { id: 0x24, format: 'U8' },
-		iceMakerMoldThermistorTemperature: { id: 0x25, format: 'U16' },
-		iceCabinetThermistorTemperature: { id: 0x26, format: 'U16' },
+		iceMakerMoldThermistorTemperature: { id: 0x25, format: 'I16' },
+		iceCabinetThermistorTemperature: { id: 0x26, format: 'I16' },
 		hotWaterThermistor1Temperature: { id: 0x27, format: 'U16' },
 		hotWaterThermistor2Temperature: { id: 0x28, format: 'U16' },
 		dctSwitchState: { id: 0x29, format: 'U8' },
@@ -442,9 +291,10 @@ exports.subscriberBroadcast = function(type, data) {
 		}
 	};
 	
-	devSet.forEach(function(ele) {
-		if (ele.subscriptions.has(message.type)) {
-			ele.send(message);
+	for (var j in devices) {
+		if (devices[j].subscriptions.has(message.type)) {
+			console.log('SENDING ' + message.type + ' to ' + devices[j].deviceType);
+			devices[j].send(message);
 		}
-	});
+	}
 };
