@@ -7,17 +7,18 @@ var _ = require("underscore");
 
 var commons = require('./commons');
 var parsers = require('./parsing');
-var fbCom = require('./firebaseCom');
 var CronJob = require('cron').CronJob;
+var attachments = {};
 
 function ChillhubDevice(ttyPath, receive, announce) {
 	var self = this;
 	
 	this.deviceType = '';
+   this.UUID = '';
 	this.subscriptions = new sets.Set([]);
 	this.buf = [];
 	this.cronJobs = {};
-	self.schema = {}
+   this.resources = {};
 	
 	this.uid = ttyPath;
 	this.tty = new serial.SerialPort('/dev/'+ttyPath, { 
@@ -30,15 +31,12 @@ function ChillhubDevice(ttyPath, receive, announce) {
 		}
 	});
 	
-   console.log("Trying to open serial port...");
 	this.tty.open(function(err) {
 		if (err) {
 			console.log('error opening serial port');
 			console.log(err);
 			return;
 		}
-
-      console.log("Serial port open.");
 		
 		self.tty.on('data', function(data) {
 			// network byte order is big endian... let's go with that
@@ -93,39 +91,42 @@ function ChillhubDevice(ttyPath, receive, announce) {
 		};
 	}
 	
+   var resource = function(name, resourceID) {
+      var that = {};
+      that.name = name;
+      that.resourceID = resourceID;
+      that.onChange = function(snap) {
+         // send the data to the device
+         console.log("Data changed for " + self.UUID + ", resource " + this.name + " to value " + snap.val());
+      }
+
+      return that;
+   }
+
 	function routeIncomingMessage(data) {
 		// parse into whatever form and then send it along
+      console.log("Data: " + data);
 		var jsonData = parsers.parseStreamToJson(data);
 		
 		switch (jsonData.type) {
 			case 0x00:
-				self.deviceType = jsonData.content;
-				console.log('REGISTERed device "'+self.deviceType+'"!');
+				self.deviceType = jsonData.content[0];
+				self.UUID = jsonData.content[1];
+				console.log('REGISTERed device "'+self.deviceType+'" with UUID '+ self.UUID + '!');
 
-				// Load Schema for this deviceType
-				fbCom.loadSchema(self.deviceType,function(data){
-					console.log("schema DATA",data)
-					self.schema = data
+            if (attachments.create) {
+               attachments.create(self.deviceType, self.UUID, function(e, resources) {
+                  if (e) {
+                     console.log("Error creating attachment.");
+                     console.log(e);
+                  } else {
+                     console.log("Attachment successfully created.");
+                     self.resources = resources;
+                  }
+               });
+            } 
+            break;
 
-					//Attach listener to each field in schema
-					//FIXME get objectID dynamically
-					var objectId = "-J_M7uoN2pjqP8I7LD3T"
-					_.each(_.keys(self.schema),function(field){
-						// var field = f
-						fbCom.addListener("objects",objectId,field,function(value){
-							// send new value to Arduino
-							self.send({
-								type: self.schema[field].messageType,
-								content: {
-									numericType: self.schema[field].contentType,
-									numericValue: value //0-100
-								}
-							});
-						});
-					});
-				});
-
-				break;
 			case 0x01: // subscribe to data stream
 				console.log(self.deviceType + ' SUBSCRIBEs to ' + jsonData.content + '!');
 				self.subscriptions.add(jsonData.content);
@@ -158,16 +159,18 @@ function ChillhubDevice(ttyPath, receive, announce) {
 				jsonData.device = self.deviceType;
 				console.log("TYPE received",jsonData.type)
 				console.log("CONTENT received",jsonData.content)
-
-				//Find what type it corresponds to in schema receives 81, corresponds to 50
-				//FIXME better way of doing this computation
-				var typeNumber = "0x"+(jsonData.type-31)
-
-				//Find in schema which field has this messageType
-				var type = _.findWhere(self.schema,{messageType: typeNumber}).fieldName
-				
-				//Update the corresponding value in Firebase
-				fbCom.updateObjectFieldFirebase("-J_M7uoN2pjqP8I7LD3T",type,jsonData.content)
+            if (attachments.chillhub) {
+               console.log("Device type: " + self.deviceType);
+               console.log("UUID: " + self.UUID);
+              chillhub = attachments.chillhub.child(self.deviceType).child(self.UUID);
+              attachments.chillhub.child(self.deviceType).child(self.UUID).update(jsonData.content, function(e) {
+                 if (e) {
+                  console.log("Error updating value.");
+                 } else {
+                    console.log("Update complete.");
+                 }
+              });
+            }
 		}	
 	}	
 
@@ -183,7 +186,12 @@ function ChillhubDevice(ttyPath, receive, announce) {
 
 var devices = {};
 
-exports.init = function(receiverCallback, deviceListCallback) {
+exports.init = function(receiverCallback, deviceListCallback, attachmentsRoot) {
+   attachments = attachmentsRoot;
+   for (var pn in attachmentsRoot) {
+      console.log(pn + ": " + attachmentsRoot[pn]);
+   }
+
    if (process.platform === 'darwin') {
       console.log("We are running on a Mac, look for tty.usbmodem devices.");
 	   var filePattern = /^tty.usbmodem[0-9]+$/;
@@ -215,7 +223,6 @@ exports.init = function(receiverCallback, deviceListCallback) {
 			devices[filename] = new ChillhubDevice(filename, callbackWrapper, listDevices);
          (function() {
             var what = filename;
-            console.log("trying to register callback");
             devices[filename].registerOpenCallback (function() {
                devices[what].send({
                   type: 0x08,
