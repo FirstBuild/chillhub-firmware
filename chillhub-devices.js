@@ -91,16 +91,50 @@ function ChillhubDevice(ttyPath, receive, announce) {
 		};
 	}
 	
-   var resource = function(name, resourceID) {
+   var registerResource = function(data) {
       var that = {};
-      that.name = name;
-      that.resourceID = resourceID;
-      that.onChange = function(snap) {
-         // send the data to the device
-         console.log("Data changed for " + self.UUID + ", resource " + this.name + " to value " + snap.val());
-      }
 
-      return that;
+      if (data.hasOwnProperty("name")) {
+         if (data.hasOwnProperty("resID")) {
+            if(data.hasOwnProperty("initVal")) {
+               if(data.hasOwnProperty("canUp")) {
+                  console.log("Registering cloud resource:");
+                  console.log("\tName: " + data.name);
+                  console.log("\tResID: " + data.resID);
+                  console.log("\tInit. Val.: " + data.initVal);
+                  console.log("\tCan Update: " + data.canUp);
+                  that.name = data.name;
+                  that.resourceID = data.resID;
+                  that.onChange = function(snap) {
+                     // send the data to the device
+                     console.log("Data changed for " + self.UUID + ", resource " + that.name + " to value " + snap.val());
+                  }
+                  if (self.resources.hasOwnProperty("createResource")) {
+                     self.resources.createResource(that.name, data.initVal, that.onChange, function(e) {
+                        if (e) {
+                           console.log("Error creating resource on firebase.");
+                           console.log(e);
+                        } else {
+                           console.log("Resource successfully created.");
+                        }
+                     });
+                  } else {
+                     console.log("Unable to create resource, cloud is not ready.");
+                  }
+
+                  return that;
+               } else {
+                  console.log("canUp property is missing.");
+               }
+            } else {
+               console.log("initVal property is missing.");
+            }
+         } else {
+            console.log("resID property is missing.");
+         }
+      } else {
+         console.log("name property is missing.");
+      } 
    }
 
 	function routeIncomingMessage(data) {
@@ -155,6 +189,13 @@ function ChillhubDevice(ttyPath, receive, announce) {
 					content: commons.encodeTime()
 				});
 				break;
+         case 0x09: // register resource on firebase
+            // JSON payload will be resource name, initial value, resource id, and updateable
+            registerResource(jsonData.content);
+            break;
+         case 0x0a: // update resource on firebase
+            // JSON payload will be resource id and new value
+            break;
 			default:
 				jsonData.device = self.deviceType;
 				console.log("TYPE received",jsonData.type)
