@@ -15,27 +15,28 @@ function ChillhubDevice(ttyPath, receive, announce) {
 
    var ESC = 0xfe;
    var STX = 0xff;
-   this.deviceType = '';
-   this.UUID = '';
-   this.subscriptions = new sets.Set([]);
-   this.buf = [];
+   self.deviceType = '';
+   self.UUID = '';
+   self.subscriptions = new sets.Set([]);
+   self.buf = [];
    self.msgBody = [];
-   this.cronJobs = {};
-   this.resources = {};
-   this.registered = false;
+   self.cronJobs = {};
+   self.resources = {};
+   self.registered = false;
 
-   this.uid = ttyPath;
-   this.tty = new serial.SerialPort('/dev/'+ttyPath, { 
+   self.uid = ttyPath;
+   self.tty = new serial.SerialPort('/dev/'+ttyPath, { 
       baudrate: 115200, 
       disconnectedCallback: function(err) {
          if (err) {
             console.log('error in disconnectedCallback');
             console.log(err);
+            console.log('UUID is ' + self.UUID);
          }
       }
    });
 
-   this.tty.open(function(err) {
+   self.tty.open(function(err) {
       if (err) {
          console.log('error opening serial port');
          console.log(err);
@@ -55,7 +56,6 @@ function ChillhubDevice(ttyPath, receive, announce) {
             while (self.buf.length > 0) {
                var c = self.buf.shift();
                if (c == STX) {
-                  console.log("STX found!");
                   self.commHandler = self.waitForLength;
                   self.waitForLength();
                   break;
@@ -100,7 +100,6 @@ function ChillhubDevice(ttyPath, receive, announce) {
                cs += self.msgBody[i];
             }
             if (cs == csSent) {
-               console.log("Checksum is good!");
                // remove message from input buffer
                self.buf.splice(0, self.bufIndex);
                self.msgBody.shift();
@@ -139,7 +138,6 @@ function ChillhubDevice(ttyPath, receive, announce) {
          });
 
          self.send = function(data) {
-            console.log("SEND DATA",data);
             // parse data into the format that usb devices expect and transmit it
             var dataBytes = parsers.parseJsonToStream(data);
             var writer = new stream.Writer(dataBytes.length+1, stream.BIG_ENDIAN);
@@ -170,7 +168,6 @@ function ChillhubDevice(ttyPath, receive, announce) {
             }
             encodeByteToArray(commons.getNibble(cs, 2), outBuf);
             encodeByteToArray(commons.getNibble(cs, 1), outBuf);
-            console.log("WRITER in send",outBuf);
             self.tty.write(outBuf, function(err) {
                if (err) {
                   console.log('error writing to serial');
@@ -297,7 +294,6 @@ function ChillhubDevice(ttyPath, receive, announce) {
 
    function routeIncomingMessage(data) {
       // parse into whatever form and then send it along
-      console.log("Data: " + data);
       var jsonData = parsers.parseStreamToJson(data);
 
       switch (jsonData.type) {
@@ -404,7 +400,7 @@ function ChillhubDevice(ttyPath, receive, announce) {
 
    self.checkForDeviceRegistration = function checkForDeviceRegistration() {
       if (!self.registered) {
-         console.log("Device was not properly register, requesting registration info again.");
+         console.log("Device was not properly registered, requesting registration info again.");
          self.sendRegistrationRequest();
          setTimeout(self.checkForDeviceRegistration, 5000);
       } 
@@ -417,9 +413,11 @@ var devices = {};
 
 exports.init = function(receiverCallback, deviceListCallback, attachmentsRoot) {
    attachments = attachmentsRoot;
+   /*
    for (var pn in attachmentsRoot) {
       console.log(pn + ": " + attachmentsRoot[pn]);
    }
+   */
 
    if (process.platform === 'darwin') {
       console.log("We are running on a Mac, look for tty.usbmodem devices.");

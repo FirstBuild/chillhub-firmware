@@ -1,5 +1,5 @@
 var ch = require('./lib/chillhub.js');
-var fb = require('Firebase');
+var fb = require('firebase');
 var fs = require('fs');
 
 var token = "";

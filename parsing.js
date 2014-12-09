@@ -52,7 +52,6 @@ exports.parseStreamToJson = function(data) {
 				};
 				break;
 			case 0x09: // js object
-            console.log("Found a JSON object.");
 				readFcn = parseObjectFromStream;
 				break;
 			case 0x0A: // boolean (could also be done as a uint8)
