@@ -11,86 +11,96 @@ var CronJob = require('cron').CronJob;
 var attachments = {};
 
 function ChillhubDevice(ttyPath, receive, announce) {
-	var self = this;
-	
-	this.deviceType = '';
-   this.UUID = '';
-	this.subscriptions = new sets.Set([]);
-	this.buf = [];
-	this.cronJobs = {};
-   this.resources = {};
-	
-	this.uid = ttyPath;
-	this.tty = new serial.SerialPort('/dev/'+ttyPath, { 
-		baudrate: 115200, 
-		disconnectedCallback: function(err) {
-			if (err) {
-				console.log('error in disconnectedCallback');
-				console.log(err);
-			}
-		}
-	});
-	
-	this.tty.open(function(err) {
-		if (err) {
-			console.log('error opening serial port');
-			console.log(err);
-			return;
-		}
-		
-		self.tty.on('data', function(data) {
-			// network byte order is big endian... let's go with that
-			self.buf = self.buf.concat((new stream.Reader(data, stream.BIG_ENDIAN)).readBytes(data.length));
-			while(self.buf.length > self.buf[0]) {
-				msg = self.buf.slice(1,self.buf[0]+1);
-				self.buf = self.buf.slice(self.buf[0]+1,self.buf.length);
-				if (msg.length > 0)
-					routeIncomingMessage(msg);
-			}
-		});
-		self.tty.on('error', function(err) {
-			console.log('serial error:');
-			console.log(err);
-		});
-		self.tty.on('disconnect', function(err) {
-			console.log('error disconnecting?');
-			console.log(err);
-		});
-	
-		self.send = function(data) {
-			console.log("SEND DATA",data)
-			// parse data into the format that usb devices expect and transmit it
-			var dataBytes = parsers.parseJsonToStream(data);
-			var writer = new stream.Writer(dataBytes.length+1, stream.BIG_ENDIAN);
-			
-			writer.writeUInt8(dataBytes.length);
-			writer.writeBytes(dataBytes);
-			console.log("WRITER in send",writer.toArray());
-			self.tty.write(writer.toArray(), function(err) {
-				if (err) {
-					console.log('error writing to serial');
-					console.log(err);
-				}
-			});
-		};
+   var self = this;
 
-      console.log("Calling open callback...");
-      if (self.onOpenCallback) {
-         self.onOpenCallback();
+   this.deviceType = '';
+   this.UUID = '';
+   this.subscriptions = new sets.Set([]);
+   this.buf = [];
+   this.cronJobs = {};
+   this.resources = {};
+
+   this.uid = ttyPath;
+   this.tty = new serial.SerialPort('/dev/'+ttyPath, { 
+      baudrate: 115200, 
+      disconnectedCallback: function(err) {
+         if (err) {
+            console.log('error in disconnectedCallback');
+            console.log(err);
+         }
       }
-	});
-	
-	function cronCallback(id) {
-		return function() {
-			var msgContent = commons.encodeTime(id);
-			
-			self.send({
-				type: 0x05,
-				content: msgContent
-			});
-		};
-	}
-	
+   });
+
+   this.tty.open(function(err) {
+      if (err) {
+         console.log('error opening serial port');
+         console.log(err);
+         return;
+      }
+
+      self.tty.flush(function(err) {
+         if (err) {
+            console.log("Error flushing the serial port input buffer.");
+            console.log(err);
+            return;
+         } 
+
+         console.log("Serial port input buffer flushed.");
+
+         self.tty.on('data', function(data) {
+            // network byte order is big endian... let's go with that
+            self.buf = self.buf.concat((new stream.Reader(data, stream.BIG_ENDIAN)).readBytes(data.length));
+            while(self.buf.length > self.buf[0]) {
+               msg = self.buf.slice(1,self.buf[0]+1);
+               self.buf = self.buf.slice(self.buf[0]+1,self.buf.length);
+               if (msg.length > 0)
+            routeIncomingMessage(msg);
+            }
+         });
+         self.tty.on('error', function(err) {
+            console.log('serial error:');
+            console.log(err);
+         });
+         self.tty.on('disconnect', function(err) {
+            console.log('error disconnecting?');
+            console.log(err);
+         });
+
+         self.send = function(data) {
+            console.log("SEND DATA",data);
+            // parse data into the format that usb devices expect and transmit it
+            var dataBytes = parsers.parseJsonToStream(data);
+            var writer = new stream.Writer(dataBytes.length+1, stream.BIG_ENDIAN);
+
+            writer.writeUInt8(dataBytes.length);
+            writer.writeBytes(dataBytes);
+            console.log("WRITER in send",writer.toArray());
+            self.tty.write(writer.toArray(), function(err) {
+               if (err) {
+                  console.log('error writing to serial');
+                  console.log(err);
+               }
+            });
+         };
+
+         console.log("Calling open callback...");
+         if (self.onOpenCallback) {
+            self.onOpenCallback();
+         }
+      });
+   });
+
+   function cronCallback(id) {
+      return function() {
+         var msgContent = commons.encodeTime(id);
+
+         self.send({
+            type: 0x05,
+            content: msgContent
+         });
+      };
+   }
+
    var registerResource = function(data) {
       var that = {};
 
@@ -105,9 +115,23 @@ function ChillhubDevice(ttyPath, receive, announce) {
                   console.log("\tCan Update: " + data.canUp);
                   that.name = data.name;
                   that.resourceID = data.resID;
-                  that.onChange = function(snap) {
-                     // send the data to the device
-                     console.log("Data changed for " + self.UUID + ", resource " + that.name + " to value " + snap.val());
+                  if (data.canUp === 1) {
+                     console.log("Going to register a callback on change..........");
+                     that.onChange = function(snap) {
+                        // send the data to the device
+                        console.log("-----> Data changed for " + self.UUID + ", resource " + that.name + ", res ID " + that.resourceID + " to value " + snap.val());
+                        //END DATA { type: 8, content: { numericType: 'U8', numericValue: 1 } }
+                        self.send({
+                           type: that.resourceID,
+                           content: {
+                              numericType: 'U8',
+                           numericValue: snap.val()
+                           }
+                        })
+                     }
+                  } else {
+                     console.log("Don't care if changes happen on this resource.");
+                     that.onChange = null;
                   }
                   if (self.resources.hasOwnProperty("createResource")) {
                      self.resources.createResource(that.name, data.initVal, that.onChange, function(e) {
@@ -137,16 +161,16 @@ function ChillhubDevice(ttyPath, receive, announce) {
       } 
    }
 
-	function routeIncomingMessage(data) {
-		// parse into whatever form and then send it along
+   function routeIncomingMessage(data) {
+      // parse into whatever form and then send it along
       console.log("Data: " + data);
-		var jsonData = parsers.parseStreamToJson(data);
-		
-		switch (jsonData.type) {
-			case 0x00:
-				self.deviceType = jsonData.content[0];
-				self.UUID = jsonData.content[1];
-				console.log('REGISTERed device "'+self.deviceType+'" with UUID '+ self.UUID + '!');
+      var jsonData = parsers.parseStreamToJson(data);
+
+      switch (jsonData.type) {
+         case 0x00:
+            self.deviceType = jsonData.content[0];
+            self.UUID = jsonData.content[1];
+            console.log('REGISTERed device "'+self.deviceType+'" with UUID '+ self.UUID + '!');
 
             if (attachments.create) {
                attachments.create(self.deviceType, self.UUID, function(e, resources) {
@@ -161,34 +185,34 @@ function ChillhubDevice(ttyPath, receive, announce) {
             } 
             break;
 
-			case 0x01: // subscribe to data stream
-				console.log(self.deviceType + ' SUBSCRIBEs to ' + jsonData.content + '!');
-				self.subscriptions.add(jsonData.content);
-				break;
-			case 0x02: // unsubscribe to data stream
-				console.log(self.deviceType + ' UNSUBSCRIBEs to ' + jsonData.content + '!');
-				self.subscriptions.remove(jsonData.content);
-				break;
-			case 0x03: // set alarm
-				var cronId = jsonData.content.charCodeAt(0);
-				var cronString = jsonData.content.substring(1);
-				console.log(self.deviceType + ' ALARM_SETS ' + cronString + '(' + cronId + ') !');
-				self.cronJobs[cronId] = new CronJob(cronString, cronCallback(cronId));
-				self.cronJobs[cronId].start();
-				break;
-			case 0x04: // unset alarm
-				console.log(self.deviceType + ' ALARM_UNSETS (' + jsonData.content + ') !');
-				if (self.cronJobs[jsonData.content]) {
-					self.cronJobs[jsonData.content].stop();
-					delete self.cronJobs[jsonData.content];
-				}
-				break;
-			case 0x06: // get time
-				self.send({
-					type: 0x07,
-					content: commons.encodeTime()
-				});
-				break;
+         case 0x01: // subscribe to data stream
+            console.log(self.deviceType + ' SUBSCRIBEs to ' + jsonData.content + '!');
+            self.subscriptions.add(jsonData.content);
+            break;
+         case 0x02: // unsubscribe to data stream
+            console.log(self.deviceType + ' UNSUBSCRIBEs to ' + jsonData.content + '!');
+            self.subscriptions.remove(jsonData.content);
+            break;
+         case 0x03: // set alarm
+            var cronId = jsonData.content.charCodeAt(0);
+            var cronString = jsonData.content.substring(1);
+            console.log(self.deviceType + ' ALARM_SETS ' + cronString + '(' + cronId + ') !');
+            self.cronJobs[cronId] = new CronJob(cronString, cronCallback(cronId));
+            self.cronJobs[cronId].start();
+            break;
+         case 0x04: // unset alarm
+            console.log(self.deviceType + ' ALARM_UNSETS (' + jsonData.content + ') !');
+            if (self.cronJobs[jsonData.content]) {
+               self.cronJobs[jsonData.content].stop();
+               delete self.cronJobs[jsonData.content];
+            }
+            break;
+         case 0x06: // get time
+            self.send({
+               type: 0x07,
+               content: commons.encodeTime()
+            });
+            break;
          case 0x09: // register resource on firebase
             // JSON payload will be resource name, initial value, resource id, and updateable
             registerResource(jsonData.content);
@@ -196,29 +220,29 @@ function ChillhubDevice(ttyPath, receive, announce) {
          case 0x0a: // update resource on firebase
             // JSON payload will be resource id and new value
             break;
-			default:
-				jsonData.device = self.deviceType;
-				console.log("TYPE received",jsonData.type)
-				console.log("CONTENT received",jsonData.content)
-            if (attachments.chillhub) {
-               console.log("Device type: " + self.deviceType);
-               console.log("UUID: " + self.UUID);
-              chillhub = attachments.chillhub.child(self.deviceType).child(self.UUID);
-              attachments.chillhub.child(self.deviceType).child(self.UUID).update(jsonData.content, function(e) {
-                 if (e) {
-                  console.log("Error updating value.");
-                 } else {
-                    console.log("Update complete.");
-                 }
-              });
-            }
-		}	
-	}	
+         default:
+            jsonData.device = self.deviceType;
+            console.log("TYPE received",jsonData.type, "(0x" + jsonData.type.toString(16) + ")");
+            console.log("CONTENT received",jsonData.content)
+               if (attachments.chillhub) {
+                  console.log("Device type: " + self.deviceType);
+                  console.log("UUID: " + self.UUID);
+                  chillhub = attachments.chillhub.child(self.deviceType).child(self.UUID);
+                  attachments.chillhub.child(self.deviceType).child(self.UUID).update(jsonData.content, function(e) {
+                     if (e) {
+                        console.log("Error updating value.");
+                     } else {
+                        console.log("Update complete.");
+                     }
+                  });
+               }
+      }	
+   }	
 
-	self.cleanup = function() {
-		for (var j in self.cronJobs)
-			self.cronJobs[j].stop();
-	};
+   self.cleanup = function() {
+      for (var j in self.cronJobs)
+         self.cronJobs[j].stop();
+   };
 
    self.registerOpenCallback = function(func) {
       self.onOpenCallback = func;

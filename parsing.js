@@ -60,6 +60,10 @@ exports.parseStreamToJson = function(data) {
 				break;
          default:
             console.log("Data type unknown: " + dataType);
+            // just remove a byte from the input stream...what else to do?
+            readFcn = function(stream) { 
+               return stream.readUInt8();
+            };
 		}
 		return readFcn;
 	};
