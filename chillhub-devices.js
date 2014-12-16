@@ -19,6 +19,7 @@ function ChillhubDevice(ttyPath, receive, announce) {
    this.buf = [];
    this.cronJobs = {};
    this.resources = {};
+   this.registered = false;
 
    this.uid = ttyPath;
    this.tty = new serial.SerialPort('/dev/'+ttyPath, { 
@@ -104,61 +105,88 @@ function ChillhubDevice(ttyPath, receive, announce) {
    var registerResource = function(data) {
       var that = {};
 
-      if (data.hasOwnProperty("name")) {
-         if (data.hasOwnProperty("resID")) {
-            if(data.hasOwnProperty("initVal")) {
-               if(data.hasOwnProperty("canUp")) {
-                  console.log("Registering cloud resource:");
-                  console.log("\tName: " + data.name);
-                  console.log("\tResID: " + data.resID);
-                  console.log("\tInit. Val.: " + data.initVal);
-                  console.log("\tCan Update: " + data.canUp);
-                  that.name = data.name;
-                  that.resourceID = data.resID;
-                  if (data.canUp === 1) {
-                     console.log("Going to register a callback on change..........");
-                     that.onChange = function(snap) {
-                        // send the data to the device
-                        console.log("-----> Data changed for " + self.UUID + ", resource " + that.name + ", res ID " + that.resourceID + " to value " + snap.val());
-                        //END DATA { type: 8, content: { numericType: 'U8', numericValue: 1 } }
-                        self.send({
-                           type: that.resourceID,
-                           content: {
-                              numericType: 'U8',
-                           numericValue: snap.val()
-                           }
-                        })
-                     }
-                  } else {
-                     console.log("Don't care if changes happen on this resource.");
-                     that.onChange = null;
-                  }
-                  if (self.resources.hasOwnProperty("createResource")) {
-                     self.resources.createResource(that.name, data.initVal, that.onChange, function(e) {
-                        if (e) {
-                           console.log("Error creating resource on firebase.");
-                           console.log(e);
-                        } else {
-                           console.log("Resource successfully created.");
-                        }
-                     });
-                  } else {
-                     console.log("Unable to create resource, cloud is not ready.");
-                  }
+      if (data.name === undefined) {
+         console.log("name property not found.");
+         return;
+      }
+      if (data.resID === undefined) {
+         console.log("resID property not found.");
+         return;
+      }
+      if(data.initVal === undefined) {
+         console.log("initVal property not found.");
+         return;
+      }
+      if(data.canUp === undefined) {
+         console.log("canUp propery not found.");
+         return;
+      }
 
-                  return that;
+      that.name = data.name;
+      that.resourceID = data.resID;
+
+      that.update = function(newVal) {
+         var obj = {};
+         obj[that.name] = newVal;
+         if (that.value) {
+            that.value.update(obj, function(e) {
+               if (e) {
+                  console.log("Error updating value.");
                } else {
-                  console.log("canUp property is missing.");
+                  console.log("Updated " + that.name + " to " + newVal);
                }
-            } else {
-               console.log("initVal property is missing.");
-            }
-         } else {
-            console.log("resID property is missing.");
+            });
+         }
+      }
+
+      if (data.canUp === 1) {
+         that.onChange = function(snap) {
+            console.log("-----> Data changed for " + self.UUID + ", resource " + that.name + ", res ID " + that.resourceID + " to value " + snap.val());
+            self.send({
+               type: that.resourceID,
+               content: {
+                  numericType: 'U8',
+               numericValue: snap.val()
+               }
+            });
          }
       } else {
-         console.log("name property is missing.");
-      } 
+         that.onChange = null;
+      }
+      if (self.resources.hasOwnProperty("createResource")) {
+         self.resources.createResource(that.name, data.initVal, that.onChange, function(e, attachment) {
+            if (e) {
+               console.log("Error creating resource " + data.name + " on firebase.");
+               console.log(e);
+            } else {
+               console.log("Resource successfully created for " + data.name + " with resource ID " + data.resID);
+               that.value = attachment;
+            }
+         });
+      } else {
+         console.log("Unable to create resource, cloud is not ready.");
+      }
+
+      self.resources[data.resID] = that;
+      return that;
+   }
+
+   function updateResource(content) {
+      if(content.resID === undefined) {
+         console.log("Error updating resource, resID field missing.");
+         return;
+      }
+      if (content.val === undefined) {
+         console.log("Error updating resource, val field missing.");
+         return;
+      }
+      if (!self.resources.hasOwnProperty(content.resID)) {
+         console.log("Resource with resource id " + content.resID + "(0x" + content.resID.toString(16) + ") not found.");
+         // kick off registration request
+         return;
+      }
+
+      self.resources[content.resID].update(content.val);
    }
 
    function routeIncomingMessage(data) {
@@ -168,6 +196,10 @@ function ChillhubDevice(ttyPath, receive, announce) {
 
       switch (jsonData.type) {
          case 0x00:
+            if (jsonData.content === undefined) {
+               console.log("Content is missing from message type 0x00 received from attachment.");
+               return;
+            }
             self.deviceType = jsonData.content[0];
             self.UUID = jsonData.content[1];
             console.log('REGISTERed device "'+self.deviceType+'" with UUID '+ self.UUID + '!');
@@ -180,6 +212,7 @@ function ChillhubDevice(ttyPath, receive, announce) {
                   } else {
                      console.log("Attachment successfully created.");
                      self.resources = resources;
+                     self.registered = true;
                   }
                });
             } 
@@ -219,11 +252,13 @@ function ChillhubDevice(ttyPath, receive, announce) {
             break;
          case 0x0a: // update resource on firebase
             // JSON payload will be resource id and new value
+            updateResource(jsonData.content);
             break;
          default:
-            jsonData.device = self.deviceType;
-            console.log("TYPE received",jsonData.type, "(0x" + jsonData.type.toString(16) + ")");
-            console.log("CONTENT received",jsonData.content)
+            try {
+               jsonData.device = self.deviceType;
+               console.log("TYPE received",jsonData.type, "(0x" + jsonData.type.toString(16) + ")");
+               console.log("CONTENT received",jsonData.content);
                if (attachments.chillhub) {
                   console.log("Device type: " + self.deviceType);
                   console.log("UUID: " + self.UUID);
@@ -236,6 +271,9 @@ function ChillhubDevice(ttyPath, receive, announce) {
                      }
                   });
                }
+            } catch (e) {
+               console.log("Error reading data from serial port possibly due to garbage.");
+            }
       }	
    }	
 
@@ -247,6 +285,26 @@ function ChillhubDevice(ttyPath, receive, announce) {
    self.registerOpenCallback = function(func) {
       self.onOpenCallback = func;
    }
+
+   self.sendRegistrationRequest = function sendRegistrationRequest () {
+      self.send({
+         type: 0x08,
+         content: {
+            numericType: 'U8',
+         numericValue: 1
+         }
+      });
+   }
+
+   self.checkForDeviceRegistration = function checkForDeviceRegistration() {
+      if (!self.registered) {
+         console.log("Device was not properly register, requesting registration info again.");
+         self.sendRegistrationRequest();
+         setTimeout(self.checkForDeviceRegistration, 5000);
+      } 
+   }
+
+   setTimeout(self.checkForDeviceRegistration, 5000);
 }
 
 var devices = {};
@@ -289,13 +347,7 @@ exports.init = function(receiverCallback, deviceListCallback, attachmentsRoot) {
          (function() {
             var what = filename;
             devices[filename].registerOpenCallback (function() {
-               devices[what].send({
-                  type: 0x08,
-                  content: {
-                     numericType: 'U8',
-                  numericValue: 1
-                  }
-               });
+               devices[what].sendRegistrationRequest();
             });
          })();
 		});
