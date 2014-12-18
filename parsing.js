@@ -8,7 +8,8 @@ var stream = require('binary-stream');
 exports.parseStreamToJson = function(data) {
 	var getDataReadFunction = function(instream) {
 		var readFcn;
-		switch(instream.readUInt8()) {
+      var dataType = instream.readUInt8();
+		switch(dataType) {
 			case 0x00: // no data
 				readFcn = function(stream) {
 					return;
@@ -51,11 +52,18 @@ exports.parseStreamToJson = function(data) {
 				};
 				break;
 			case 0x09: // js object
+            console.log("Found a JSON object.");
 				readFcn = parseObjectFromStream;
 				break;
 			case 0x0A: // boolean (could also be done as a uint8)
 				readFcn = parseBooleanFromStream;
 				break;
+         default:
+            console.log("Data type unknown: " + dataType);
+            // just remove a byte from the input stream...what else to do?
+            readFcn = function(stream) { 
+               return stream.readUInt8();
+            };
 		}
 		return readFcn;
 	};
@@ -78,7 +86,7 @@ exports.parseStreamToJson = function(data) {
 	
 	var parseObjectFromStream = function(instream) {
 		var length = instream.readUInt8();
-		var obj;
+		var obj = {};
 		
 		for (var i = 0; i < length; i++) {
 			var fieldName = parseStringFromStream(instream);

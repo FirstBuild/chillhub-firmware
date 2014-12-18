@@ -14,4 +14,14 @@ exports.encodeTime =function(id) {
 			numericValue: val
 		};
 	});
-}
+};
+
+exports.getNibble = function(i, nibble) {
+   while(nibble > 1) {
+      i = Math.floor(i/256);
+      nibble--;
+   }
+
+   return i & 0xff;
+};
+

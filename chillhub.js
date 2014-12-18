@@ -1,9 +1,13 @@
+var fs = require('fs');
 var gea = require('green-bean');
 var devices = require('./chillhub-devices');
-//var ac = require('./autoclick-opencv');
-
-var Firebase = require("firebase");
+var firebase = require("firebase");
 var util = require("util");
+var fb = require('./firebaseHelper.js');
+
+var configFile = "./config.json";
+var hwVersion = '1.0.0';
+var swVersion = '1.0.0';
 
 var messageRelay = function(data) {
 	console.log(data);
@@ -25,11 +29,21 @@ var messageBroadcast = function(data) {
 		devices.subscriberBroadcast(field, data[field]);
 };
 
-devices.init(messageRelay, deviceAnnounce);
 
+// open connection to firebase
+fb.startConnection(configFile, hwVersion, swVersion, function(e, attachments) {
+   if (e) {
+      console.log("Error connecting to firebase.");
+   } else {
+      // got our attachment point
+      console.log("Connected to firebase, initializing devices.");
+      devices.init(messageRelay, deviceAnnounce, attachments);
+   }
+}); 
+
+/*
 gea.connect('refrigerator', function(refrigerator) {
 	console.log('connected to fridge!');
-	//autoclick = new ac.Autoclick();
 	
 	refrigerator.filterAlert.subscribe(messageBroadcast);
 	refrigerator.filterExpirationStatus.subscribe(messageBroadcast);
@@ -51,3 +65,4 @@ gea.connect('refrigerator', function(refrigerator) {
 	
 	console.log('subscribed to all fridge events');
 });
+*/

@@ -24,7 +24,7 @@ The **Message Type** field is a 1-byte value that is meant to indicate to the re
 
 |**Message Type (Hex)**|**Description**|**Data Type of Payload**|
 |----------------------|---------------|------------------------|
-|0x00                  |Device ID      |String                  |
+|0x00                  |Device ID & UUID      |Array                  |
 |0x01                  |Subscribe      |Unsigned, 8-bit integer |
 |0x02|Unsubscribe|Unsigned, 8-bit integer|
 |0x03|Set Alarm|String (see below)|
@@ -33,7 +33,10 @@ The **Message Type** field is a 1-byte value that is meant to indicate to the re
 |0x06|Get Time|none|
 |0x07|Provide Time|Array of uint8|
 |0x08|Send Device ID|none|
-|0x09-0x0F|Reserved for Future Use|n/a|
+|0x09|Register Resource|JSON|
+|0x0a|Update Resource|JSON|
+|0x0b|Resource Updated|JSON|
+|0x0c-0x0F|Reserved for Future Use|n/a|
 |0x10|filterAlert|Unsigned, 8-bit integer|
 |0x11|waterFilterCalendarTimer|Unsigned, 16-bit integer|
 |0x12|waterFilterCalendarPercentUsed|Unsigned, 8-bit integer|
@@ -142,27 +145,32 @@ The Payload field contains the data of interest to the receiver.  The payload fi
 
 Message Examples
 ----------------
-Ex. 1: Send Device ID (“ChillHub-Demo”)
+Ex. 1: Send Device ID and UUID (“ChillHub-Demo”, "UUID")
 
 Byte No|Data|Description|
 -------|----|-----------|
-0|0x10|Message Length (16 bytes)|
+0|0xXX|Message Length (XX bytes)|
 1|0x01|Message Type (Device ID)|
-2|0x02|Payload Data Type (String)|
-3|0x0C|No of Character in String (13)|
-4|0x43|C|
-5|0x68|h|
-6|0x69|i|
-7|0x6C|l|
-8|0x6C|l|
-|9|0x48|H
-|10|0x75|u
-|11|0x62|b
-|12|0x2D|-
-|13|0x44|D
-|14|0x65|e
-|15|0x6D|m
-|16|0x6F|o
+2|0x01|Payload Data Type (Array)|
+3|0x02|Number of array elements|
+4|0x02|Data type of the elements|
+5|0x0C|No of Character in String (13)|
+6|0x43|C|
+7|0x68|h|
+8|0x69|i|
+9|0x6C|l|
+10|0x6C|l|
+|11|0x48|H
+|12|0x75|u
+|13|0x62|b
+|14|0x2D|-
+|15|0x44|D
+|16|0x65|e
+|17|0x6D|m
+|18|0x6F|o
+|19|0x20|No of characaters in string (32)
+|20|Y|First character of UUID
+<continue until all UUID charcters are sent>
 
 Ex. 2: Subscribe to Refrigerator Door Status Events
 
