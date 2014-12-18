@@ -13,10 +13,13 @@ var attachments = {};
 function ChillhubDevice(ttyPath, receive, announce) {
    var self = this;
 
+   var ESC = 0xfe;
+   var STX = 0xff;
    this.deviceType = '';
    this.UUID = '';
    this.subscriptions = new sets.Set([]);
    this.buf = [];
+   self.msgBody = [];
    this.cronJobs = {};
    this.resources = {};
    this.registered = false;
@@ -48,14 +51,82 @@ function ChillhubDevice(ttyPath, receive, announce) {
 
          console.log("Serial port input buffer flushed.");
 
+         self.scanForStx = function() {
+            while (self.buf.length > 0) {
+               var c = self.buf.shift();
+               if (c == STX) {
+                  console.log("STX found!");
+                  self.commHandler = self.waitForLength;
+                  self.waitForLength();
+                  break;
+               }
+            }
+         }
+
+         self.waitForLength = function() {
+            if (self.buf.length > 1) {
+               if (self.buf[0] == ESC) {
+                 self.buf.shift();
+               }
+               self.msgLen = self.buf.shift();
+               self.bufIndex = 0;
+               self.msgBody.length = 0;
+               self.commHandler = self.waitForMessage;
+               self.waitForMessage();
+            }
+         }
+
+         self.waitForMessage = function() {
+            while (self.buf.length > self.bufIndex) {
+               if (self.buf[self.bufIndex] == ESC) {
+                  if ((self.buf.length - self.bufIndex) > 1) {
+                     self.bufIndex++;
+                  } else {
+                     return;
+                  }
+               }
+               self.msgBody.push(self.buf[self.bufIndex++]);
+               // wait for message plus sent checksum
+               if (self.msgBody.length >= self.msgLen+2) {
+                  self.checkMessage();
+               }
+            }
+         }
+
+         self.checkMessage= function() {
+            var csSent = self.msgBody.pop() + self.msgBody.pop()*256;
+            var cs = 42;
+            for (var i = 0; i<self.msgBody.length; i++) {
+               cs += self.msgBody[i];
+            }
+            if (cs == csSent) {
+               console.log("Checksum is good!");
+               // remove message from input buffer
+               self.buf.splice(0, self.bufIndex);
+               self.msgBody.shift();
+               routeIncomingMessage(self.msgBody);
+            } else {
+               console.log("Check sum error.");
+               self.buf.shift();
+            }
+            self.commHandler = self.scanForStx;
+            self.scanForStx();
+         }
+
+         self.commHandler = self.scanForStx;
+
          self.tty.on('data', function(data) {
             // network byte order is big endian... let's go with that
             self.buf = self.buf.concat((new stream.Reader(data, stream.BIG_ENDIAN)).readBytes(data.length));
+            self.commHandler();
+            return;
+
             while(self.buf.length > self.buf[0]) {
                msg = self.buf.slice(1,self.buf[0]+1);
                self.buf = self.buf.slice(self.buf[0]+1,self.buf.length);
-               if (msg.length > 0)
-            routeIncomingMessage(msg);
+               if (msg.length > 0) {
+                  routeIncomingMessage(msg);
+               }
             }
          });
          self.tty.on('error', function(err) {
@@ -72,6 +143,41 @@ function ChillhubDevice(ttyPath, receive, announce) {
             // parse data into the format that usb devices expect and transmit it
             var dataBytes = parsers.parseJsonToStream(data);
             var writer = new stream.Writer(dataBytes.length+1, stream.BIG_ENDIAN);
+            writer.writeUInt8(dataBytes.length);
+            writer.writeBytes(dataBytes);
+            var buf = writer.toArray();
+            var outBuf = [];
+
+            if (buf.length > 255) {
+               console.log("ERROR: Cannot send a message longer than 255 bytes!!!");
+               return;
+            }
+
+            var encodeByteToArray = function(b, a) {
+               if (b == ESC || b == STX) {
+                  a.push(ESC);
+               }
+               a.push(b);
+            }
+
+            // Take message body, wrap in STX and checksum, add escapes as needed.
+            outBuf.push(STX);
+            encodeByteToArray(buf.length, outBuf);
+            var cs = 42;
+            for (var i=0; i<buf.length; i++) {
+               encodeByteToArray(buf[i], outBuf);
+               cs += buf[i];
+            }
+            encodeByteToArray(commons.getNibble(cs, 2), outBuf);
+            encodeByteToArray(commons.getNibble(cs, 1), outBuf);
+            console.log("WRITER in send",outBuf);
+            self.tty.write(outBuf, function(err) {
+               if (err) {
+                  console.log('error writing to serial');
+                  console.log(err);
+               }
+            });
+            return;
 
             writer.writeUInt8(dataBytes.length);
             writer.writeBytes(dataBytes);
