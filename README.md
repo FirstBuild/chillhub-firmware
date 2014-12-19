@@ -25,6 +25,7 @@ original packet, treats it as a payload, adds a start of packet character, an es
 and a checksum at the end of the payload.  The packet structure is as follows:
 
 | STX | Length | Payload | 16-bit Checksum with MSB first |
+|-----|--------|---------|--------------------------------|
 
 - The STX has a value of 0xff (255).
 - The length of the payload is the length of the original message including the length, message type, 
@@ -36,6 +37,7 @@ byte happens to be the same value as a control character but should be treated a
 *Example:*
 
 Original message: 3, 148, 3, 0
+
 Wrapped message: 255 4 3 148 3 0 0 196
  
 | *Byte* | *Meaning*                                      |
@@ -53,8 +55,9 @@ Checksum calculation: 42 (seed) + 3 + 148 + 3 = 196
 
 *Example with escape characters:*
 
-Original message 3, 148, 3, 255
-Wrapped message 255 4 3 148 3 254 255 1 195
+Original message: 3, 148, 3, 255
+
+Wrapped message: 255 4 3 148 3 254 255 1 195
 
 | *Byte* | *Meaning*                                      |
 |--------|------------------------------------------------|
