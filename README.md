@@ -18,6 +18,63 @@ The ChillHub receives and transmits packetized data to/from USB peripherals.  A 
 
 The Length field represents the number of bytes in the packet, not including the length field itself.
 
+Packet Wrapper
+--------------
+An additional packet wrapper has been added to improve the robustness of communication.  It takes the 
+original packet, treats it as a payload, adds a start of packet character, an escape character, the length of the payload,
+and a checksum at the end of the payload.  The packet structure is as follows:
+
+| STX | Length | Payload | 16-bit Checksum with MSB first |
+
+- The STX has a value of 0xff (255).
+- The length of the payload is the length of the original message including the length, message type, 
+and payload of the original message.  The calculated length does not include any escape characters.
+- An escape (ESC) character with value 0xfe (254) is used to indicate that the next character is a 
+byte happens to be the same value as a control character but should be treated as a portion of the message.
+- The checksum is calculated over the original payload and is seeded with the decimal value 42.
+
+*Example:*
+
+Original message: 3, 148, 3, 0
+Wrapped message: 255 4 3 148 3 0 0 196
+ 
+| *Byte* | *Meaning*                                      |
+|--------|------------------------------------------------|
+| 255    | STX control character                          |
+|  4     | Length of the original message                 |
+|  3     | First character of original message (length)   |
+| 148    | Second byte of original message (message type) |
+|  3     | Third byte of original message (data type)     |
+|  0     | Fourth byte of original message (data)         |  
+|  0     | Most-significant byte of the checksum          |
+| 196    | Least-significatn byte of the checksum         |
+
+Checksum calculation: 42 (seed) + 3 + 148 + 3 = 196
+
+*Example with escape characters:*
+
+Original message 3, 148, 3, 255
+Wrapped message 255 4 3 148 3 254 255 1 195
+
+| *Byte* | *Meaning*                                      |
+|--------|------------------------------------------------|
+| 255    | STX control character                          |
+|  4     | Length of the original message                 |
+|  3     | First character of original message (length)   |
+| 148    | Second byte of original message (message type) |
+|  3     | Third byte of original message (data type)     |
+| 254    | The escape control character                   | 
+| 255    | Fourth byte of original message (data)         |  
+|  1     | Most-significant byte of the checksum          |
+| 195    | Least-significatn byte of the checksum         |
+
+In this example it can be seen that the original message contains a value of 255, which is the
+STX control character.  This character is preceeded by the escape control character, highlighted
+above, which is not included in the character count.
+
+If any byte of the original message include a control character (STX or ESC), it should be 
+preceded in the new, wrapped message wth the ESC control character.
+
 Message Types
 -------------
 The **Message Type** field is a 1-byte value that is meant to indicate to the receiver what sort of data is located in the **Payload** field as an aid to processing that data.  The defined message types are enumerated below.  Note that ChillHub uses Big-Endian or Network Byte Order.
