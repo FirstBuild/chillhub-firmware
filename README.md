@@ -53,7 +53,7 @@ _Wrapped message:_ 255, 4, 3, 148, 3, 0, 0, 196
 
 Checksum calculation: 42 (seed) + 3 + 148 + 3 = 196
 
-*Example with escape characters:*
+**Example with escape characters:**
 
 _Original message:_ 3, 148, 3, 255
 
