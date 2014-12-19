@@ -75,7 +75,7 @@ In this example it can be seen that the original message contains a value of 255
 STX control character.  This character is preceeded by the escape control character, highlighted
 above, which is not included in the character count.
 
-If any byte of the original message include a control character (STX or ESC), it should be 
+If any byte of the original message includes a control character (STX or ESC), it should be 
 preceded in the new, wrapped message wth the ESC control character.
 
 Message Types
