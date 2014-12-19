@@ -34,22 +34,22 @@ and payload of the original message.  The calculated length does not include any
 byte happens to be the same value as a control character but should be treated as a portion of the message.
 - The checksum is calculated over the original payload and is seeded with the decimal value 42.
 
-*Example:*
+**Example:**
 
 _Original message:_ 3, 148, 3, 0
 
 _Wrapped message:_ 255, 4, 3, 148, 3, 0, 0, 196
  
-| *Byte* | *Meaning*                                      |
-|--------|------------------------------------------------|
-| 255    | STX control character                          |
-|  4     | Length of the original message                 |
-|  3     | First character of original message (length)   |
-| 148    | Second byte of original message (message type) |
-|  3     | Third byte of original message (data type)     |
-|  0     | Fourth byte of original message (data)         |  
-|  0     | Most-significant byte of the checksum          |
-| 196    | Least-significatn byte of the checksum         |
+| **Byte** | **Meaning**                                    |
+|----------|------------------------------------------------|
+|   255    | STX control character                          |
+|    4     | Length of the original message                 |
+|    3     | First character of original message (length)   |
+|   148    | Second byte of original message (message type) |
+|    3     | Third byte of original message (data type)     |
+|    0     | Fourth byte of original message (data)         |  
+|    0     | Most-significant byte of the checksum          |
+|   196    | Least-significatn byte of the checksum         |
 
 Checksum calculation: 42 (seed) + 3 + 148 + 3 = 196
 
@@ -59,17 +59,17 @@ _Original message:_ 3, 148, 3, 255
 
 _Wrapped message:_ 255, 4, 3, 148, 3, 254, 255, 1, 195
 
-| *Byte* | *Meaning*                                      |
-|--------|------------------------------------------------|
-| 255    | STX control character                          |
-|  4     | Length of the original message                 |
-|  3     | First character of original message (length)   |
-| 148    | Second byte of original message (message type) |
-|  3     | Third byte of original message (data type)     |
-| 254    | The escape control character                   | 
-| 255    | Fourth byte of original message (data)         |  
-|  1     | Most-significant byte of the checksum          |
-| 195    | Least-significatn byte of the checksum         |
+| **Byte** | **Meaning**                                    |
+|----------|------------------------------------------------|
+|   255    | STX control character                          |
+|    4     | Length of the original message                 |
+|    3     | First character of original message (length)   |
+|   148    | Second byte of original message (message type) |
+|    3     | Third byte of original message (data type)     |
+|   254    | The escape control character                   | 
+|   255    | Fourth byte of original message (data)         |  
+|    1     | Most-significant byte of the checksum          |
+|   195    | Least-significatn byte of the checksum         |
 
 In this example it can be seen that the original message contains a value of 255, which is the
 STX control character.  This character is preceeded by the escape control character, highlighted
