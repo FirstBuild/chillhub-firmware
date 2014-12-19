@@ -10,6 +10,7 @@ var hwVersion = '1.0.0';
 var swVersion = '1.0.0';
 
 var messageRelay = function(data) {
+   console.log("\rn\rnIN MESSAGE RELAY\r\n");
 	console.log(data);
 	var myFirebaseRef = new Firebase("https://intense-heat-7203.firebaseio.com/homes/home1/devices" + 
 		data.devId + "/status");
@@ -18,6 +19,7 @@ var messageRelay = function(data) {
 };
 
 var deviceAnnounce = function(devlist) {
+   console.log("\rn\rnIN deviceAnnounce\r\n");
 	console.log(devlist);
 	var myFirebaseRef = new Firebase("https://intense-heat-7203.firebaseio.com/homes/home1/devices");
 	
@@ -25,6 +27,7 @@ var deviceAnnounce = function(devlist) {
 };
 
 var messageBroadcast = function(data) {
+   console.log("\rn\rnIN messageBroadcast\r\n");
 	for (var field in data)
 		devices.subscriberBroadcast(field, data[field]);
 };

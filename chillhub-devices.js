@@ -31,6 +31,7 @@ function ChillhubDevice(ttyPath, receive, announce) {
          if (err) {
             console.log('error in disconnectedCallback');
             console.log(err);
+            console.log('UUID is ' + this.UUID);
          }
       }
    });
