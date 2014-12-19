@@ -36,9 +36,9 @@ byte happens to be the same value as a control character but should be treated a
 
 *Example:*
 
-Original message: 3, 148, 3, 0
+_Original message:_ 3, 148, 3, 0
 
-Wrapped message: 255 4 3 148 3 0 0 196
+_Wrapped message:_ 255, 4, 3, 148, 3, 0, 0, 196
  
 | *Byte* | *Meaning*                                      |
 |--------|------------------------------------------------|
@@ -55,9 +55,9 @@ Checksum calculation: 42 (seed) + 3 + 148 + 3 = 196
 
 *Example with escape characters:*
 
-Original message: 3, 148, 3, 255
+_Original message:_ 3, 148, 3, 255
 
-Wrapped message: 255 4 3 148 3 254 255 1 195
+_Wrapped message:_ 255, 4, 3, 148, 3, 254, 255, 1, 195
 
 | *Byte* | *Meaning*                                      |
 |--------|------------------------------------------------|
