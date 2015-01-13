@@ -6,6 +6,30 @@ This project provides the code running on the refrigerator itself that provides 
 
 Gory Details
 ============
+<pre>
+
+
+
+
+                      +------------------------------------------------------+
+                      |+----------------+       +---------------------------+|
+ 5VDC Input from------&gt;|                +-------------------&gt;+5V to GPIO    ||
+  &#39;wallwart&#39;          ||Power Distro PCB|       |               Header      ||
+                 +---&gt;||  (Upverter)    +------&gt;|                           ||
+                 |+--&gt;|+----------------+------&gt;|USB     Raspberry Pi B+    ||
+                 ||   |           +------------&gt;|Ports                      ||
+                 ||   |           |     +------&gt;|                           ||
+   External------+|   |           |     |       |                           ||
+     USB----------+   |           |     |       +---------------------------+|
+  to hubs in          |           |     |                                    |
+    fridge            |           |     |    Chillhub Enclosure              |
+                      | +---------+---+ |                                    |
+                      | | Wifi Dongle | |        +--------------------------+|
+                      | +-------------+ |        |                          ||
+                      |                 +--------+   Green Bean            RJ45+-------&gt;To fridge
+                      |                          |                          ||            RJ45
+                      |                          +--------------------------+|
+                      +------------------------------------------------------+</pre>
 ChillHub to USB Peripheral Interface
 ------------------------------------
 The ChillHub system expects to work with USB devices that are of the CDC (Communications Device Class) ACM (Abstract Control Model) device class.  This class of devices essentially acts as the classical RS-232 serial port.  We select this class because it is easy to understand and is readily available for prototypers as the Arduino platform implements the CDC ACM class by default.  The ChillHub communicates at a baud rate of 115200 bps.
