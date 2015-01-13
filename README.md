@@ -6,6 +6,9 @@ This project provides the code running on the refrigerator itself that provides 
 
 Gory Details
 ============
+Hardware
+--------
+
 <pre>
 
 
@@ -30,6 +33,12 @@ Gory Details
                       |                          |                          ||            RJ45
                       |                          +--------------------------+|
                       +------------------------------------------------------+</pre>
+
+Link to Upverter project for Power Distribution PCB:
+https://upverter.com/firstbuild/7ce96d53e282a1d7/Chillhub-Power-Distribution-Board/
+
+Power Supply: TRIAD MAGNETICS  WSU050-4000  AC-DC CONV, EXTERNAL PLUG IN, 1 O/P, 20W, 4A, 5V
+
 ChillHub to USB Peripheral Interface
 ------------------------------------
 The ChillHub system expects to work with USB devices that are of the CDC (Communications Device Class) ACM (Abstract Control Model) device class.  This class of devices essentially acts as the classical RS-232 serial port.  We select this class because it is easy to understand and is readily available for prototypers as the Arduino platform implements the CDC ACM class by default.  The ChillHub communicates at a baud rate of 115200 bps.
