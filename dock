@@ -1,0 +1,38 @@
+#!/bin/bash -e
+
+working_dir="$1"
+container_name="$2"
+
+if [[ "$1" == "" ]]; then
+  working_dir="`dirname $0`"
+fi
+
+working_dir="`cd $working_dir && pwd`"
+workspace="`cd $working_dir && cd .. && pwd`"
+
+if [[ "$2" == "" ]]; then
+  container_name="`basename $working_dir`"
+  image_name="dock/$container_name"
+fi
+
+if [[ -z $(cd $working_dir && git pull | grep "Already up-to-date") ]]; then
+  docker build -t $image_name $working_dir
+  docker stop $container_name || true
+  docker rm $container_name || true
+  docker rmi $(docker images | grep "^<none>" | awk '{print $3}') || true
+fi
+
+if [[ -z $(docker images | grep $image_name) ]]; then
+  docker build -t $image_name $working_dir
+  docker rmi $(docker images | grep "^<none>" | awk '{print $3}') || true
+fi
+
+State=$(workspace/chillhub-commissioning/pifi wlan0 -s)
+
+if [[ "$State" != "WiFi_Connected" ]]; then
+  docker stop $container_name || true
+elif [[ -z $(docker ps | grep $container_name) ]]; then
+  docker rm $container_name || true
+  docker run --name $container_name -d $image_name
+fi
+
