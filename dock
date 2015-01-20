@@ -27,7 +27,7 @@ if [[ -z $(docker images | grep $image_name) ]]; then
   docker rmi $(docker images | grep "^<none>" | awk '{print $3}') || true
 fi
 
-State=$($workspace/chillhub-commissioning/pifi wlan0 -s)
+State=$(cd /boot/chillhub && pifi wlan0 -s)
 
 if [[ "$State" != "WiFi_Connected" ]]; then
   docker stop $container_name || true
