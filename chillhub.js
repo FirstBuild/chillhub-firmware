@@ -5,7 +5,7 @@ var firebase = require("firebase");
 var util = require("util");
 var fb = require('./firebaseHelper.js');
 
-var configFile = "./config.json";
+var configFile = "./share/chillhub.json";
 var hwVersion = '1.0.0';
 var swVersion = '1.0.0';
 
