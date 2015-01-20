@@ -43,7 +43,7 @@ var startConnection = function(configFile, hwVersion, swVersion, callback) {
                      console.log("Config file opened.");
                      var obj = JSON.parse(data);
                      token = obj.token;
-                     chUUID = obj.chillhubUUID;
+                     chUUID = obj.uuid;
                      connectToFirebase(fb, token, chUUID);
                   }
                });
