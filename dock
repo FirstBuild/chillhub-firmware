@@ -33,6 +33,6 @@ if [[ "$State" != "WiFi_Connected" ]]; then
   docker stop $container_name || true
 elif [[ -z $(docker ps | grep $container_name) ]]; then
   docker rm $container_name || true
-  docker run --privileged --name $container_name -d $image_name
+  docker run --privileged --name $container_name -v /boot/chillhub:/src/share -d $image_name
 fi
 
