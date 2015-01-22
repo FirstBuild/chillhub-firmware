@@ -129,7 +129,8 @@ The **Message Type** field is a 1-byte value that is meant to indicate to the re
 |0x09|Register Resource|JSON|
 |0x0a|Update Resource|JSON|
 |0x0b|Resource Updated|JSON|
-|0x0c-0x0F|Reserved for Future Use|n/a|
+|0x0c|Set device UUID|String|
+|0x0d-0x0F|Reserved for Future Use|n/a|
 |0x10|filterAlert|Unsigned, 8-bit integer|
 |0x11|waterFilterCalendarTimer|Unsigned, 16-bit integer|
 |0x12|waterFilterCalendarPercentUsed|Unsigned, 8-bit integer|
@@ -166,6 +167,8 @@ The **Message Type** field is a 1-byte value that is meant to indicate to the re
 Note that messages 0x00-0x4F are reserved for ChillHub defined messages.  Messages 0x50-0xFF are available for use by peripherals to perform arbitrary tasks.  All user defined messages and the ChillHub defined messages that are marked as such will perform no action at the refrigerator but instead will be forwarded directly to the ChillHub Cloud Server for further processing.
 
 For the definition of the payload in message types 0x10-0x2D, refer to the GEA SDK Refrigerator Plugin documentation (https://github.com/GEMakers/gea-plugin-refrigerator#appendix).  The payload of these messages will have the same format as that described in the message of the same name in the Refrigerator Plugin.
+
+Note that each device that will attach to the ChillHub needs to have a UUID.  The UUID shall be a Version 4 random UUID.  Example: f47ac10b-58cc-4372-a567-0e02b2c3d479.  The this WikiPedia link for more details on UUID Version 4: http://en.wikipedia.org/wiki/Universally_unique_identifier#Version_4_.28random.29
 
 Timing Messages
 ---------------
