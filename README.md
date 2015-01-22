@@ -168,7 +168,7 @@ Note that messages 0x00-0x4F are reserved for ChillHub defined messages.  Messag
 
 For the definition of the payload in message types 0x10-0x2D, refer to the GEA SDK Refrigerator Plugin documentation (https://github.com/GEMakers/gea-plugin-refrigerator#appendix).  The payload of these messages will have the same format as that described in the message of the same name in the Refrigerator Plugin.
 
-Note that each device that will attach to the ChillHub needs to have a UUID.  The UUID shall be a Version 4 random UUID.  Example: f47ac10b-58cc-4372-a567-0e02b2c3d479.  The this WikiPedia link for more details on UUID Version 4: http://en.wikipedia.org/wiki/Universally_unique_identifier#Version_4_.28random.29
+Note that each device that will attach to the ChillHub needs to have a UUID.  The UUID shall be a Version 4 random UUID.  Example: f47ac10b-58cc-4372-a567-0e02b2c3d479.  See this WikiPedia link for more details on UUID Version 4: http://en.wikipedia.org/wiki/Universally_unique_identifier#Version_4_.28random.29
 
 Timing Messages
 ---------------
