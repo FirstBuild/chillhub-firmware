@@ -205,7 +205,8 @@ function ChillhubDevice(ttyPath, receive, announce) {
       };
    }
 
-   var registerResource = function(data) {
+   //var registerResource = function(data) {
+   function registerResource(data) {
       var that = {};
 
       if (data.name === undefined) {
@@ -225,8 +226,12 @@ function ChillhubDevice(ttyPath, receive, announce) {
          return;
       }
 
+      console.log("Registering resource " + data.name + " with resource ID " + data.resID);
+
       that.name = data.name;
       that.resourceID = data.resID;
+      that.initVal = data.initVal;
+      that.canUp = data.canUp;
 
       that.update = function(newVal) {
          var obj = {};
@@ -267,7 +272,8 @@ function ChillhubDevice(ttyPath, receive, announce) {
             }
          });
       } else {
-         console.log("Unable to create resource, cloud is not ready.");
+         console.log("Unable to create resource, cloud is not ready.  Retrying in 1 second.");
+         setTimeout(registerResource, 1000, data);
       }
 
       self.resources[data.resID] = that;
@@ -285,11 +291,9 @@ function ChillhubDevice(ttyPath, receive, announce) {
       }
       if (!self.resources.hasOwnProperty(content.resID)) {
          console.log("Resource with resource id " + content.resID + "(0x" + content.resID.toString(16) + ") not found.");
-         // kick off registration request
-         return;
+      } else {
+         self.resources[content.resID].update(content.val);
       }
-
-      self.resources[content.resID].update(content.val);
    }
 
    function routeIncomingMessage(data) {
