@@ -30,3 +30,5 @@ node_modules
 # Vim-related stuff to ignore
 default.vim
 
+tags
+cscope.out
