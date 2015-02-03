@@ -35,7 +35,7 @@ function ChillhubDevice(ttyPath, receive, announce) {
             console.log('UUID is ' + self.UUID);
          }
          if (self.resources.hasOwnProperty("setStatus")) {
-            self.resources.setStatus("offline");
+            self.resources.setStatus("disconnected");
          } else {
             console.log("Could not set status, property setStatus not found.");
          }
