@@ -23,6 +23,7 @@ function ChillhubDevice(ttyPath, receive, announce) {
    self.cronJobs = {};
    self.resources = {};
    self.registered = false;
+   self.ignoreMsgCount = 10;
 
    self.uid = ttyPath;
    self.tty = new serial.SerialPort('/dev/'+ttyPath, { 
@@ -32,6 +33,11 @@ function ChillhubDevice(ttyPath, receive, announce) {
             console.log('error in disconnectedCallback');
             console.log(err);
             console.log('UUID is ' + self.UUID);
+         }
+         if (self.resources.hasOwnProperty("setStatus")) {
+            self.resources.setStatus("offline");
+         } else {
+            console.log("Could not set status, property setStatus not found.");
          }
       }
    });
@@ -103,7 +109,11 @@ function ChillhubDevice(ttyPath, receive, announce) {
                // remove message from input buffer
                self.buf.splice(0, self.bufIndex);
                self.msgBody.shift();
-               routeIncomingMessage(self.msgBody);
+               if (self.ignoreMsgCount > 0) {
+                  self.ignoreMsgCount--;
+               } else {
+                  routeIncomingMessage(self.msgBody);
+               }
             } else {
                console.log("Check sum error.");
                self.buf.shift();
@@ -118,20 +128,13 @@ function ChillhubDevice(ttyPath, receive, announce) {
             // network byte order is big endian... let's go with that
             self.buf = self.buf.concat((new stream.Reader(data, stream.BIG_ENDIAN)).readBytes(data.length));
             self.commHandler();
-            return;
-
-            while(self.buf.length > self.buf[0]) {
-               msg = self.buf.slice(1,self.buf[0]+1);
-               self.buf = self.buf.slice(self.buf[0]+1,self.buf.length);
-               if (msg.length > 0) {
-                  routeIncomingMessage(msg);
-               }
-            }
          });
+
          self.tty.on('error', function(err) {
             console.log('serial error:');
             console.log(err);
          });
+
          self.tty.on('disconnect', function(err) {
             console.log('error disconnecting?');
             console.log(err);
@@ -205,7 +208,6 @@ function ChillhubDevice(ttyPath, receive, announce) {
       };
    }
 
-   //var registerResource = function(data) {
    function registerResource(data) {
       var that = {};
 
@@ -226,7 +228,19 @@ function ChillhubDevice(ttyPath, receive, announce) {
          return;
       }
 
+      // Don't try to register the resource unless we have a cloud connection.
+      if (!self.resources.hasOwnProperty("createResource")) {
+         console.log("Unable to create resource, cloud is not ready.  Retrying in 1 second.");
+         setTimeout(registerResource, 1000, data);
+         return;
+      }
+
       console.log("Registering resource " + data.name + " with resource ID " + data.resID);
+
+      if (self.resources.hasOwnProperty(data.resID)) {
+         console.log("Property creation already underway.");
+         return;
+      }
 
       that.name = data.name;
       that.resourceID = data.resID;
@@ -261,23 +275,19 @@ function ChillhubDevice(ttyPath, receive, announce) {
       } else {
          that.onChange = null;
       }
-      if (self.resources.hasOwnProperty("createResource")) {
-         self.resources.createResource(that.name, data.initVal, that.onChange, function(e, attachment) {
-            if (e) {
-               console.log("Error creating resource " + data.name + " on firebase.");
-               console.log(e);
-            } else {
-               console.log("Resource successfully created for " + data.name + " with resource ID " + data.resID);
-               that.value = attachment;
-            }
-         });
-      } else {
-         console.log("Unable to create resource, cloud is not ready.  Retrying in 1 second.");
-         setTimeout(registerResource, 1000, data);
-      }
 
       self.resources[data.resID] = that;
-      return that;
+
+      self.resources.createResource(that.name, data.initVal, that.onChange, function(e, attachment) {
+         if (e) {
+            console.log("Error creating resource " + data.name + " on firebase.");
+            console.log(e);
+         } else {
+            console.log("Resource successfully created for " + data.name + " with resource ID " + data.resID);
+            self.resources[data.resID].value = attachment;
+         }
+      });
+
    }
 
    function updateResource(content) {
@@ -289,9 +299,7 @@ function ChillhubDevice(ttyPath, receive, announce) {
          console.log("Error updating resource, val field missing.");
          return;
       }
-      if (!self.resources.hasOwnProperty(content.resID)) {
-         console.log("Resource with resource id " + content.resID + "(0x" + content.resID.toString(16) + ") not found.");
-      } else {
+      if (self.resources.hasOwnProperty(content.resID)) {
          self.resources[content.resID].update(content.val);
       }
    }
