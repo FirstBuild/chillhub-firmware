@@ -175,16 +175,6 @@ function ChillhubDevice(ttyPath, receive, announce) {
                }
             });
             return;
-
-            writer.writeUInt8(dataBytes.length);
-            writer.writeBytes(dataBytes);
-            console.log("WRITER in send",writer.toArray());
-            self.tty.write(writer.toArray(), function(err) {
-               if (err) {
-                  console.log('error writing to serial');
-                  console.log(err);
-               }
-            });
          };
 
          console.log("Calling open callback...");
