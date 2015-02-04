@@ -3,12 +3,13 @@ var fs = require('fs');
 var stream = require('binary-stream');
 var sets = require('simplesets');
 
-var _ = require("underscore");
+//var _ = require("underscore");
 
 var commons = require('./commons');
 var parsers = require('./parsing');
 var CronJob = require('cron').CronJob;
 var CRC = require('crc');
+var validator = require('validator');
 var attachments = {};
 
 function ChillhubDevice(ttyPath, receive, announce) {
@@ -24,7 +25,6 @@ function ChillhubDevice(ttyPath, receive, announce) {
    self.cronJobs = {};
    self.resources = {};
    self.registered = false;
-   self.ignoreMsgCount = 10;
 
    self.uid = ttyPath;
    self.tty = new serial.SerialPort('/dev/'+ttyPath, { 
@@ -107,11 +107,7 @@ function ChillhubDevice(ttyPath, receive, announce) {
                // remove message from input buffer
                self.buf.splice(0, self.bufIndex);
                self.msgBody.shift();
-               if (self.ignoreMsgCount > 0) {
-                  self.ignoreMsgCount--;
-               } else {
-                  routeIncomingMessage(self.msgBody);
-               }
+               routeIncomingMessage(self.msgBody);
             } else {
                console.log("Check sum error.");
                self.buf.shift();
@@ -311,8 +307,19 @@ function ChillhubDevice(ttyPath, receive, announce) {
                console.log("Content is missing from message type 0x00 received from attachment.");
                return;
             }
+            // check for a repeat registration
+            if (self.registered) {
+               console.log("This module was already registered, did it reboot?");
+               break;
+            }
+
+            // New device, try to register.
             self.deviceType = jsonData.content[0];
             self.UUID = jsonData.content[1];
+            if(!validator.isUUID(self.UUID)) {
+               console.log("UUID received from the attachment is invalid: " + self.UUID);
+               break;
+            }
             console.log('REGISTERed device "'+self.deviceType+'" with UUID '+ self.UUID + '!');
 
             if (attachments.create) {
