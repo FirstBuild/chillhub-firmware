@@ -8,6 +8,7 @@ var _ = require("underscore");
 var commons = require('./commons');
 var parsers = require('./parsing');
 var CronJob = require('cron').CronJob;
+var CRC = require('crc');
 var attachments = {};
 
 function ChillhubDevice(ttyPath, receive, announce) {
@@ -100,12 +101,9 @@ function ChillhubDevice(ttyPath, receive, announce) {
          }
 
          self.checkMessage= function() {
-            var csSent = self.msgBody.pop() + self.msgBody.pop()*256;
-            var cs = 42;
-            for (var i = 0; i<self.msgBody.length; i++) {
-               cs += self.msgBody[i];
-            }
-            if (cs == csSent) {
+            var crcSent = self.msgBody.pop() + self.msgBody.pop()*256;
+            crc =  CRC.crc16ccitt(self.msgBody);
+            if (crc == crcSent) {
                // remove message from input buffer
                self.buf.splice(0, self.bufIndex);
                self.msgBody.shift();
@@ -164,13 +162,12 @@ function ChillhubDevice(ttyPath, receive, announce) {
             // Take message body, wrap in STX and checksum, add escapes as needed.
             outBuf.push(STX);
             encodeByteToArray(buf.length, outBuf);
-            var cs = 42;
+            var crc = CRC.crc16ccitt(buf);
             for (var i=0; i<buf.length; i++) {
                encodeByteToArray(buf[i], outBuf);
-               cs += buf[i];
             }
-            encodeByteToArray(commons.getNibble(cs, 2), outBuf);
-            encodeByteToArray(commons.getNibble(cs, 1), outBuf);
+            encodeByteToArray(commons.getNibble(crc, 2), outBuf);
+            encodeByteToArray(commons.getNibble(crc, 1), outBuf);
             self.tty.write(outBuf, function(err) {
                if (err) {
                   console.log('error writing to serial');
