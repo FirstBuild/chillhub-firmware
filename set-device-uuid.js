@@ -5,6 +5,7 @@ var sets = require('simplesets');
 var commons = require('./commons');
 var parsers = require('./parsing');
 var uuid = require('uuid-v4');
+var CRC = require('crc');
 
 function ChillhubDevice(ttyPath) {
    var self = this;
@@ -89,16 +90,17 @@ function ChillhubDevice(ttyPath) {
          }
 
          self.checkMessage= function() {
-            var csSent = self.msgBody.pop() + self.msgBody.pop()*256;
-            var cs = 42;
-            for (var i = 0; i<self.msgBody.length; i++) {
-               cs += self.msgBody[i];
-            }
-            if (cs == csSent) {
+            var crcSent = self.msgBody.pop() + self.msgBody.pop()*256;
+            crc =  CRC.crc16ccitt(self.msgBody);
+            if (crc == crcSent) {
                // remove message from input buffer
                self.buf.splice(0, self.bufIndex);
                self.msgBody.shift();
-               routeIncomingMessage(self.msgBody);
+               if (self.ignoreMsgCount > 0) {
+                  self.ignoreMsgCount--;
+               } else {
+                  routeIncomingMessage(self.msgBody);
+               }
             } else {
                console.log("Check sum error.");
                self.buf.shift();
@@ -156,13 +158,12 @@ function ChillhubDevice(ttyPath) {
             // Take message body, wrap in STX and checksum, add escapes as needed.
             outBuf.push(STX);
             encodeByteToArray(buf.length, outBuf);
-            var cs = 42;
+            var crc = CRC.crc16ccitt(buf);
             for (var i=0; i<buf.length; i++) {
                encodeByteToArray(buf[i], outBuf);
-               cs += buf[i];
             }
-            encodeByteToArray(commons.getNibble(cs, 2), outBuf);
-            encodeByteToArray(commons.getNibble(cs, 1), outBuf);
+            encodeByteToArray(commons.getNibble(crc, 2), outBuf);
+            encodeByteToArray(commons.getNibble(crc, 1), outBuf);
             self.tty.write(outBuf, function(err) {
                if (err) {
                   console.log('error writing to serial');
@@ -170,16 +171,6 @@ function ChillhubDevice(ttyPath) {
                }
             });
             return;
-
-            writer.writeUInt8(dataBytes.length);
-            writer.writeBytes(dataBytes);
-            console.log("WRITER in send",writer.toArray());
-            self.tty.write(writer.toArray(), function(err) {
-               if (err) {
-                  console.log('error writing to serial');
-                  console.log(err);
-               }
-            });
          };
 
          if (self.onOpenCallback) {
