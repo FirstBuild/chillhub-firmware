@@ -1,6 +1,6 @@
 {
   "name": "chillhub-firmware",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "ChillHub is a system for creating USB devices that extend the functionality of your fridge. It consists of a raspberry pi (http://www.raspberrypi.org/), a green bean (https://firstbuild.com/greenbean/), and a USB hub in a refrigerator door. ChillHub acts as a mailman the delivers messages from the cloud and the fridge to USB devices and from the USB devices back to the cloud.",
   "main": "chillhub.js",
   "scripts": {
@@ -20,6 +20,8 @@
   "dependencies": {
     "binary-stream": "git+https://github.com/GEMakers/binary-stream.git",
     "cron": "*",
+    "crc": "*",
+    "validator": "*",
     "firebase": "^1.2.0-beta.1-0",
     "green-bean": "*",
     "serialport": "*",
