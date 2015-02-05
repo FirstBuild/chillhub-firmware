@@ -5,10 +5,9 @@ RUN apt-get install -y wget dialog
 RUN wget http://node-arm.herokuapp.com/node_latest_armhf.deb
 RUN dpkg -i node_latest_armhf.deb
 RUN apt-get install -y git python make g++ libudev-dev libusb-1.0-0-dev
-ADD package.json /src/package.json
-RUN cd /src && npm install
-RUN echo "blacklist cytherm" >> /etc/modprobe.d/blacklist.conf
-ADD . /src
-WORKDIR /src
-CMD ["npm", "start"]
 
+WORKDIR /src
+ADD package.json /src/package.json
+RUN npm install --production
+ADD . /src
+CMD ["npm", "start"]
