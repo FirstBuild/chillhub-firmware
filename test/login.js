@@ -50,7 +50,7 @@ describe('chillhub.login(token, callback)', function() {
   describe('when the token is defined', function() {
     it('should login to Firebase', function(done) {
       function Firebase(url) {
-        should(url).eql('https://mobius-firstbuild.firebaseio.com');
+        should(url).eql('https://firstbuild.firebaseio.com');
       }
       
       Firebase.prototype.authWithCustomToken = function(token, callback) {
