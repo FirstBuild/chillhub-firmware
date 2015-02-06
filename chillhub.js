@@ -1,53 +1,58 @@
+// Packages...
 var fs = require('fs');
 var gea = require('green-bean');
 var devices = require('./chillhub-devices');
 var firebase = require("firebase");
 var util = require("util");
 var fb = require('./firebaseHelper.js');
-
+// Configs
+var packageFile = "./package.json";
 var configFile = "./share/chillhub.json";
 var hwVersion = '1.0.0';
-var swVersion = '1.0.0';
 
 var messageRelay = function(data) {
    console.log("<---- In messageRelay ---->");
 	console.log(data);
-/*
-	var myFirebaseRef = new Firebase("https://intense-heat-7203.firebaseio.com/homes/home1/devices" + 
-		data.devId + "/status");
-	
-	myFirebaseRef.set(data);
-*/
 };
 
 var deviceAnnounce = function(devlist) {
    console.log("<---- In deviceAnnounce ---->");
 	console.log(devlist);
-/*
-	var myFirebaseRef = new Firebase("https://intense-heat-7203.firebaseio.com/homes/home1/devices");
-	
-	myFirebaseRef.set(devlist);
-*/
-};
+}
 
 var messageBroadcast = function(data) {
    console.log("<---- In messageBroadcast ---->");
-/*
-	for (var field in data)
-		devices.subscriberBroadcast(field, data[field]);
-*/
 };
 
+var startFirebase = function(swVersion) {
+   console.log("Sending this SW version to firebase: " + swVersion);
+   fb.startConnection(configFile, hwVersion, swVersion, function(e, attachments) {
+      if (e) {
+         console.log("Error connecting to firebase.");
+      } else {
+         // got our attachment point
+         console.log("Connected to firebase, initializing devices.");
+         devices.init(messageRelay, deviceAnnounce, attachments);
+      }
+   });
+}
 
-// open connection to firebase
-fb.startConnection(configFile, hwVersion, swVersion, function(e, attachments) {
+fs.readFile(packageFile, function(e, data) {
+   var ver = "UNKNOWN";
    if (e) {
-      console.log("Error connecting to firebase.");
+      console.log("Error opening " + packageFile + ".");
+      printError(e);
    } else {
-      // got our attachment point
-      console.log("Connected to firebase, initializing devices.");
-      devices.init(messageRelay, deviceAnnounce, attachments);
+      console.log("Package file opened.");
+      var obj = JSON.parse(data);
+      if (obj.version) {
+         ver = obj.version;
+         console.log("Found software version: " + ver);
+      } else {
+         console.log("Unable to find the chillhub firmware version in " + packageFile + ".");
+      }
    }
+   startFirebase(ver);
 });
 
 /*
