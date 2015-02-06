@@ -4,6 +4,7 @@ var fs = require('fs');
 
 var token = "";
 var chUUID = "";
+var url = "";
 var hardware_version = "1.0.0";
 var software_version = '1.0.0';
 var attachments = [];
@@ -44,7 +45,8 @@ var startConnection = function(configFile, hwVersion, swVersion, callback) {
                      var obj = JSON.parse(data);
                      token = obj.token;
                      chUUID = obj.uuid;
-                     connectToFirebase(fb, token, chUUID);
+                     url = obj.firebaseUrl
+                     connectToFirebase(fb, token, chUUID, url);
                   }
                });
             } else { // if swVersion
@@ -61,8 +63,8 @@ var startConnection = function(configFile, hwVersion, swVersion, callback) {
    }
 }
 
-var connectToFirebase = function(fb, token, chUUID) {
-   ch(fb, Date).login(token, function(e, hub) {
+var connectToFirebase = function(fb, token, chUUID, url) {
+   ch(fb, Date).login(token, url, function(e, hub) {
       if (e) {
          console.log("Error logging into firebase.");
          printError(e);
