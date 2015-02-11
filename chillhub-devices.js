@@ -427,7 +427,8 @@ exports.init = function(receiverCallback, deviceListCallback, attachmentsRoot) {
 
    if (process.platform === 'darwin') {
       console.log("We are running on a Mac, look for tty.usbmodem devices.");
-	   var filePattern = /^tty.usbmodem[0-9]+$/;
+	   //var filePattern = /^tty.usbmodem[0-9]+$/;
+	   var filePattern = /^tty.usbmodem[0-9]+([a-z]+[0-9]+)*$/;
    } else {
 	   var filePattern = /^ttyACM[0-9]{1,2}$/;
    }
