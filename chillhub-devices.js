@@ -25,6 +25,8 @@ function ChillhubDevice(ttyPath, receive, announce) {
    self.cronJobs = {};
    self.resources = {};
    self.registered = false;
+   self.deviceRegTimer = null;
+   self.resourceRegTimer = null;
 
    self.uid = ttyPath;
    self.tty = new serial.SerialPort('/dev/'+ttyPath, { 
@@ -40,6 +42,7 @@ function ChillhubDevice(ttyPath, receive, announce) {
          } else {
             console.log("Could not set status, property setStatus not found.");
          }
+         removeDevice(ttyPath);
       }
    });
 
@@ -213,8 +216,12 @@ function ChillhubDevice(ttyPath, receive, announce) {
 
       // Don't try to register the resource unless we have a cloud connection.
       if (!self.resources.hasOwnProperty("createResource")) {
-         console.log("Unable to create resource, cloud is not ready.  Retrying in 1 second.");
-         setTimeout(registerResource, 1000, data);
+         if (devices[ttyPath]) {
+            console.log("Unable to create resource, cloud is not ready.  Retrying in 1 second.");
+            self.resourceRegTimer = setTimeout(registerResource, 1000, data);
+         } else {
+            console.log("Looks like we got delete, not starting the timer.");
+         }
          return;
       }
 
@@ -405,17 +412,31 @@ function ChillhubDevice(ttyPath, receive, announce) {
    }
 
    self.checkForDeviceRegistration = function checkForDeviceRegistration() {
-      if (!self.registered) {
+      if (!self.registered && devices[ttyPath]) {
          console.log("Device was not properly registered, requesting registration info again.");
          self.sendRegistrationRequest();
-         setTimeout(self.checkForDeviceRegistration, 5000);
+         self.deviceRegTimer = setTimeout(self.checkForDeviceRegistration, 5000);
       } 
    }
 
-   setTimeout(self.checkForDeviceRegistration, 5000);
+   self.deviceRegTimer = setTimeout(self.checkForDeviceRegistration, 2000);
+
+   return self;
 }
 
 var devices = {};
+
+var removeDevice = function(device) {
+   console.log('unregistering USB device ' + device);
+   if (devices[device].resourceRegTimer != null) {
+      clearTimeout(devices[device].resourceRegTimer);
+   }
+   if (devices[device].deviceRegTimer != null) {
+      clearTimeout(devices[device].deviceRegTimer);
+   }
+   devices[device].cleanup();
+   delete devices[device];
+}
 
 exports.init = function(receiverCallback, deviceListCallback, attachmentsRoot) {
    attachments = attachmentsRoot;
@@ -447,22 +468,35 @@ exports.init = function(receiverCallback, deviceListCallback, attachmentsRoot) {
 		receiverCallback(msg);
 	};
 	
-	fs.readdir('/dev/', function(err, files) {
-		files = files.filter(function(file) {
-			return filePattern.test(file);
-		});
-		
-		files.forEach(function(filename) {
-			console.log('registering new USB device ' + filename);
-			devices[filename] = new ChillhubDevice(filename, callbackWrapper, listDevices);
-         (function() {
-            var what = filename;
-            devices[filename].registerOpenCallback (function() {
-               devices[what].sendRegistrationRequest();
-            });
-         })();
-		});
-	});
+	var pollForDevices = function() { 
+      // look for new devices to add
+      fs.readdir('/dev/', function(err, files) {
+         files = files.filter(function(file) {
+            return filePattern.test(file);
+         });
+
+         files.forEach(function(filename) {
+            if (!devices[filename]) {
+               console.log('registering new USB device ' + filename);
+               devices[filename] = new ChillhubDevice(filename, callbackWrapper, listDevices);
+            }
+         });
+      });
+
+      // look for old devices to remove
+      for (var filename in devices) {
+         fs.exists('/dev/'+filename, function (exists) {
+            if (!exists) {
+               console.log("Attachment " + filename + " no longer exists, removing.");
+               removeDevice(filename);
+            }
+         });
+      }
+   }
+
+   pollForDevices();
+
+   setInterval(pollForDevices, 10000);
 	
 	// watch for new devices
 	fs.watch('/dev/', function(event, filename) {
@@ -471,9 +505,7 @@ exports.init = function(receiverCallback, deviceListCallback, attachmentsRoot) {
 		
 		fs.exists('/dev/'+filename, function (exists) {
 			if (devices[filename] && !exists) {
-				console.log('unregistering USB device ' + filename);
-				devices[filename].cleanup();
-				delete devices[filename];
+            removeDevice(filename);
 				listDevices();
 			}
 			else if (!devices[filename] && exists) {
