@@ -3,7 +3,13 @@ var fs = require('fs');
 var stream = require('binary-stream');
 var sets = require('simplesets');
 
-//var _ = require("underscore");
+var sys = require('sys')
+var exec = require('child_process').exec;
+function puts(error, stdout, stderr) { sys.puts(stdout) }
+function resetUSB() {
+   //exec("ls -la", puts);
+   exec("/bin/usbreset /dev/bus/usb/001/002", puts);
+}
 
 var commons = require('./commons');
 var parsers = require('./parsing');
@@ -27,6 +33,7 @@ function ChillhubDevice(ttyPath, receive, announce) {
    self.registered = false;
    self.deviceRegTimer = null;
    self.resourceRegTimer = null;
+   self.deviceRegCount = 5;
 
    self.uid = ttyPath;
    self.tty = new serial.SerialPort('/dev/'+ttyPath, { 
@@ -412,11 +419,16 @@ function ChillhubDevice(ttyPath, receive, announce) {
    }
 
    self.checkForDeviceRegistration = function checkForDeviceRegistration() {
+      if (self.deviceRegCount <= 0) {
+         resetUSB();
+         removeDevice(ttyPath);
+      }
       if (!self.registered && devices[ttyPath]) {
          console.log("Device was not properly registered, requesting registration info again.");
          self.sendRegistrationRequest();
          self.deviceRegTimer = setTimeout(self.checkForDeviceRegistration, 5000);
       } 
+      self.deviceRegCount--;
    }
 
    self.deviceRegTimer = setTimeout(self.checkForDeviceRegistration, 2000);
