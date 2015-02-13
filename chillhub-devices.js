@@ -3,14 +3,6 @@ var fs = require('fs');
 var stream = require('binary-stream');
 var sets = require('simplesets');
 
-var sys = require('sys')
-var exec = require('child_process').exec;
-function puts(error, stdout, stderr) { sys.puts(stdout) }
-function resetUSB() {
-   //exec("ls -la", puts);
-   exec("/bin/usbreset /dev/bus/usb/001/002", puts);
-}
-
 var commons = require('./commons');
 var parsers = require('./parsing');
 var CronJob = require('cron').CronJob;
@@ -432,7 +424,6 @@ function ChillhubDevice(ttyPath, receive, announce) {
 
    self.checkForDeviceRegistration = function checkForDeviceRegistration() {
       if (self.deviceRegCount <= 0) {
-         resetUSB();
          removeDevice(ttyPath);
       }
       if (!self.registered && devices[ttyPath]) {
