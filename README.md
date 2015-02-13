@@ -130,7 +130,8 @@ The **Message Type** field is a 1-byte value that is meant to indicate to the re
 |0x0a|Update Resource|JSON|
 |0x0b|Resource Updated|JSON|
 |0x0c|Set device UUID|String|
-|0x0d-0x0F|Reserved for Future Use|n/a|
+|0x0d|Keepalive|none|
+|0x0e-0x0F|Reserved for Future Use|n/a|
 |0x10|filterAlert|Unsigned, 8-bit integer|
 |0x11|waterFilterCalendarTimer|Unsigned, 16-bit integer|
 |0x12|waterFilterCalendarPercentUsed|Unsigned, 8-bit integer|

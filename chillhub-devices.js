@@ -33,6 +33,7 @@ function ChillhubDevice(ttyPath, receive, announce) {
    self.registered = false;
    self.deviceRegTimer = null;
    self.resourceRegTimer = null;
+   self.keepaliveTimer = null;
    self.deviceRegCount = 5;
 
    self.uid = ttyPath;
@@ -335,6 +336,7 @@ function ChillhubDevice(ttyPath, receive, announce) {
                      console.log("Attachment successfully created.");
                      self.resources = resources;
                      self.registered = true;
+                     self.keepaliveTimer = setInterval(self.sendKeepalive, 2500);
                   }
                });
             } 
@@ -418,6 +420,16 @@ function ChillhubDevice(ttyPath, receive, announce) {
       });
    }
 
+   self.sendKeepalive = function () {
+      self.send({
+         type: 0x0d,
+         content: {
+            numericType: 'U8',
+         numericValue: 1
+         }
+      });
+   }
+
    self.checkForDeviceRegistration = function checkForDeviceRegistration() {
       if (self.deviceRegCount <= 0) {
          resetUSB();
@@ -445,6 +457,9 @@ var removeDevice = function(device) {
    }
    if (devices[device].deviceRegTimer != null) {
       clearTimeout(devices[device].deviceRegTimer);
+   }
+   if (devices[device].keepaliveTimer != null) {
+      clearInterval(devices[device].keepaliveTimer);
    }
    devices[device].cleanup();
    delete devices[device];
