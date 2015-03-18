@@ -55,9 +55,9 @@ Packet Wrapper
 --------------
 An additional packet wrapper has been added to improve the robustness of communication.  It takes the 
 original packet, treats it as a payload, adds a start of packet character, an escape character, the length of the payload,
-and a checksum at the end of the payload.  The packet structure is as follows:
+and a CRC at the end of the payload.  The packet structure is as follows:
 
-| STX | Length | Payload | 16-bit Checksum with MSB first |
+| STX | Length | Payload | 16-bit CRC with MSB first |
 |-----|--------|---------|--------------------------------|
 
 - The STX has a value of 0xff (255).
@@ -65,7 +65,10 @@ and a checksum at the end of the payload.  The packet structure is as follows:
 and payload of the original message.  The calculated length does not include any escape characters.
 - An escape (ESC) character with value 0xfe (254) is used to indicate that the next character is a 
 byte happens to be the same value as a control character but should be treated as a portion of the message.
-- The checksum is calculated over the original payload and is seeded with the decimal value 42.
+- The CRC is calculated over the original payload.  The CRC is a 16-bit CRC using the CCITT polynomial
+of 0x1021 and seed value of 0xffff.  Various CRC calculators are available on the internet, such as 
+(http://www.zorc.breitbandkatze.de/crc.html).
+
 
 **Example:**
 
@@ -81,10 +84,8 @@ _Wrapped message:_ 255, 4, 3, 148, 3, 0, 0, 196
 |   148    | Second byte of original message (message type) |
 |    3     | Third byte of original message (data type)     |
 |    0     | Fourth byte of original message (data)         |  
-|    0     | Most-significant byte of the checksum          |
-|   196    | Least-significatn byte of the checksum         |
-
-Checksum calculation: 42 (seed) + 3 + 148 + 3 = 196
+|   238    | Most-significant byte of the CRC               |
+|   182    | Least-significatn byte of the CRC              |
 
 **Example with escape characters:**
 
@@ -101,8 +102,8 @@ _Wrapped message:_ 255, 4, 3, 148, 3, 254, 255, 1, 195
 |    3     | Third byte of original message (data type)     |
 |   254    | The escape control character                   | 
 |   255    | Fourth byte of original message (data)         |  
-|    1     | Most-significant byte of the checksum          |
-|   195    | Least-significatn byte of the checksum         |
+|   240    | Most-significant byte of the CRC               |
+|    70    | Least-significatn byte of the CRC              |
 
 In this example it can be seen that the original message contains a value of 255, which is the
 STX control character.  This character is preceeded by the escape control character, highlighted
