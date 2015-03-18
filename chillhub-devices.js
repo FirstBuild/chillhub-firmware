@@ -313,6 +313,8 @@ function ChillhubDevice(ttyPath, receive, announce) {
             // New device, try to register.
             self.deviceType = jsonData.content[0];
             self.UUID = jsonData.content[1];
+            console.log("Received name: " + self.deviceType);
+            console.log("Received UUID: " + self.UUID);
             if(!validator.isUUID(self.UUID)) {
                console.log("UUID received from the attachment is invalid: " + self.UUID);
                break;
