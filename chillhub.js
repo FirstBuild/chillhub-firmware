@@ -1,6 +1,5 @@
 // Packages...
 var fs = require('fs');
-var gea = require('green-bean');
 var devices = require('./chillhub-devices');
 var firebase = require("firebase");
 var util = require("util");
