@@ -19,15 +19,14 @@
   ],
   "dependencies": {
     "binary-stream": "git+https://github.com/GEMakers/binary-stream.git",
-    "cron": "*",
-    "crc": "*",
-    "validator": "*",
-    "firebase": "^1.2.0-beta.1-0",
-    "green-bean": "*",
-    "serialport": "*",
-    "simplesets": "*",
-    "underscore": "*",
-    "uuid": "^2.0.1"
+    "crc": "^3.2.1",
+    "cron": "^1.0.9",
+    "firebase": "^2.2.3",
+    "serialport": "^1.6.3",
+    "simplesets": "^1.2.0",
+    "underscore": "^2.0.1",
+    "uuid": "^2.0.1",
+    "validator": "^3.35.0"
   },
   "author": "FirstBuild",
   "license": "ISC",
