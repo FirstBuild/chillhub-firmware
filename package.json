@@ -24,7 +24,7 @@
     "firebase": "^2.2.3",
     "serialport": "^1.6.3",
     "simplesets": "^1.2.0",
-    "underscore": "^2.0.1",
+    "underscore": "^1.8.3",
     "uuid": "^2.0.1",
     "validator": "^3.35.0"
   },
