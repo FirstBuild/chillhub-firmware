@@ -10,6 +10,26 @@ var CRC = require('crc');
 var validator = require('validator');
 var attachments = {};
 
+function isInt(n) {
+   var retval = false;
+   if (typeof(n) == "number") {
+      if (n % 1 === 0) {
+         retval = true;
+      }
+   }
+   return retval;
+}
+
+function isFloat(n) {
+   var retval = false;
+   if (typeof(n) == "number") {
+      if (n % 1 != 0) {
+         retval = true;
+      }
+   }
+   return retval;
+}
+
 function ChillhubDevice(ttyPath, receive, announce) {
    var self = this;
 
@@ -139,7 +159,9 @@ function ChillhubDevice(ttyPath, receive, announce) {
 
          self.send = function(data) {
             // parse data into the format that usb devices expect and transmit it
+            console.log("Going to send a message to a device, parsing data to send...");
             var dataBytes = parsers.parseJsonToStream(data);
+            console.log("...parsing complete.");
             var writer = new stream.Writer(dataBytes.length+1, stream.BIG_ENDIAN);
             writer.writeUInt8(dataBytes.length);
             writer.writeBytes(dataBytes);
@@ -254,13 +276,34 @@ function ChillhubDevice(ttyPath, receive, announce) {
       if (data.canUp === 1) {
          that.onChange = function(snap) {
             console.log("-----> Data changed for " + self.UUID + ", resource " + that.name + ", res ID " + that.resourceID + " to value " + snap.val());
-            self.send({
-               type: that.resourceID,
-               content: {
-                  numericType: 'U8',
-               numericValue: snap.val()
+            // check the data type
+            if (typeof(snap.val()) === 'number') {
+               if (isInt(snap.val())) {
+                  if (snap.val() < 0) {
+                     self.send({
+                        type: that.resourceID,
+                        content: {
+                           numericType: 'I32',
+                           numericValue: snap.val()
+                        }
+                     });
+                  } else {
+                     self.send({
+                        type: that.resourceID,
+                        content: {
+                           numericType: 'U32',
+                           numericValue: snap.val()
+                        }
+                     });
+                  }
                }
-            });
+            }
+            if (typeof(snap.val()) === 'string') {
+               self.send({
+                  type: that.resourceID,
+                  content: snap.val()
+               });
+            }
          }
       } else {
          that.onChange = null;

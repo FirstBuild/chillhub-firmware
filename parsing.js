@@ -195,10 +195,11 @@ exports.parseJsonToStream = function(message) {
 				parseFcn = parseNothingToStream;
 				break;
 			default:
-				if (data.numericType)
+				if (data.numericType) {
 					parseFcn = parseNumericObjectToStream(data);
-				else
+            } else {
 					parseFcn = parseObjectToStream;
+            }
 				break;
 		}
 		parseFcn(outstream, data, doWriteType);
