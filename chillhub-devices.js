@@ -159,9 +159,7 @@ function ChillhubDevice(ttyPath, receive, announce) {
 
          self.send = function(data) {
             // parse data into the format that usb devices expect and transmit it
-            console.log("Going to send a message to a device, parsing data to send...");
             var dataBytes = parsers.parseJsonToStream(data);
-            console.log("...parsing complete.");
             var writer = new stream.Writer(dataBytes.length+1, stream.BIG_ENDIAN);
             writer.writeUInt8(dataBytes.length);
             writer.writeBytes(dataBytes);
