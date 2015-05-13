@@ -274,7 +274,7 @@ if (process.platform === 'darwin') {
    console.log("We are running on a Mac, look for tty.usbmodem devices.");
    var filePattern = /^tty.usbmodem[0-9]+$/;
 } else {
-   var filePattern = /^ttyACM[0-9]{1,2}$/;
+   var filePattern = /^(ttyACM[0-9]{1,2}|ttyUSB[0-9]{1,2})$/;
 }
 
 fs.readdir('/dev/', function(err, files) {

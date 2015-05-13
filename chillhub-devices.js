@@ -471,7 +471,7 @@ exports.init = function(receiverCallback, deviceListCallback, attachmentsRoot) {
 	   //var filePattern = /^tty.usbmodem[0-9]+$/;
 	   var filePattern = /^tty.usbmodem[0-9]+([a-z]+[0-9]+)*$/;
    } else {
-	   var filePattern = /^ttyACM[0-9]{1,2}$/;
+	   var filePattern = /^(ttyACM[0-9]{1,2}|ttyUSB[0-9]{1,2})$/;
    }
 	
 	//similar to announce()
