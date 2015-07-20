@@ -1,4 +1,5 @@
 var serial = require('serialport');
+var http = require('http');
 var fs = require('fs');
 var stream = require('binary-stream');
 var sets = require('simplesets');
@@ -28,6 +29,25 @@ function isFloat(n) {
       }
    }
    return retval;
+}
+
+function access_point() {
+  var options = {
+    hostname: 'localhost',
+    port: 80,
+    path: '/networks',
+    method: 'DELETE'
+  };
+
+  var req = http.request(options, function(res) {
+    console.log('Request to start access point returned', res.statusCode);
+  });
+
+  req.on('error', function(e) {
+    console.log('Cannot start access point because commissioning is disabled.');
+  });
+
+  req.end();
 }
 
 function ChillhubDevice(ttyPath, receive, announce) {
@@ -413,6 +433,12 @@ function ChillhubDevice(ttyPath, receive, announce) {
             // JSON payload will be resource id and new value
             updateResource(jsonData.content);
             break;
+
+         case 0x2e: // go to access point mode
+            console.log('Received request to go to access point mode');
+            access_point();
+            break;
+
          default:
             try {
                jsonData.device = self.deviceType;

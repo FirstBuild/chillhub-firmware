@@ -163,7 +163,8 @@ The **Message Type** field is a 1-byte value that is meant to indicate to the re
 |0x2B|ductDoorStatus|Unsigned, 8-bit integer|
 |0x2C|iceMakerStateSelection|Unsigned, 8-bit integer|
 |0x2D|iceMakerOperationalState|Unsigned, 8-bit integer|
-|0x2E-0x4F|Reserved for Future Use|n/a|
+|0x2E|accessPointEnable|none|
+|0x2F-0x4F|Reserved for Future Use|n/a|
 |0x50-0xFF|User Defined Messages|n/a|
 
 Note that messages 0x00-0x4F are reserved for ChillHub defined messages.  Messages 0x50-0xFF are available for use by peripherals to perform arbitrary tasks.  All user defined messages and the ChillHub defined messages that are marked as such will perform no action at the refrigerator but instead will be forwarded directly to the ChillHub Cloud Server for further processing.
